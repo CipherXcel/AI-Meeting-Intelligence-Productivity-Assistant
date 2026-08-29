@@ -1,6 +1,9 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "meetagent-frontend",
+  "version": "1.0.0",
+  "description": "MeetAgent AI — Next.js 16 Web Application",
+  "author": "Priyanshu Raj <spriyanshuraj09@gmail.com> (https://github.com/CipherXcel)",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev",

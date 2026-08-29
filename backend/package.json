@@ -1,7 +1,9 @@
 {
-  "name": "backend",
+  "name": "meetagent-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "MeetAgent AI — Express 5 REST API & Mastra Agentic Engine",
+  "author": "Priyanshu Raj <spriyanshuraj09@gmail.com> (https://github.com/CipherXcel)",
+  "license": "MIT",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
