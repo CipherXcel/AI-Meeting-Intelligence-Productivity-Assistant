@@ -1,0 +1,27 @@
+# Dependencies (matches backend/node_modules & frontend/node_modules)
+**/node_modules/
+
+# Secrets & Environment Variables (NEVER push to GitHub)
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+*.pem
+
+# Production Build Artifacts & Next.js cache
+**/.next/
+**/dist/
+**/build/
+**/uploads/
+*.db
+*.db-*
+
+
+# Local backup & scratch folders
+my_project/
+
+# System & Log files
+npm-debug.log*
+.DS_Store
+Thumbs.db
