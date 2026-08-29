@@ -81,7 +81,6 @@ The application is deployed live on AWS Cloud Infrastructure (Ubuntu 24.04 LTS):
 * **AWS S3 Object Versioning**: Transparently archives previous revisions of files when overwritten under the same key.
 * **Version History Modal**: Allows users to inspect historical revisions, view exact S3 `VersionId` tags, and download or restore past versions.
 * **Live Media Gallery & Lightbox**: Instant visual rendering for images (`PNG`, `JPG`, `WEBP`, `SVG`, `GIF`) and formatted document badges for `PDF`, `DOCX`, `TXT`.
-* **Python Boto3 Automation**: Standalone automation script (`s3_storage_automation.py`) demonstrating programmatic bucket provisioning, versioning configuration, multi-version uploads, and historical rollbacks.
 
 ### 🤖 3. Agentic AI & Multimodal Processing
 * **Mastra Agentic AI Framework**: Modular tool execution, event loops, and streaming responses (`SSE / chunked streams`).
@@ -90,7 +89,7 @@ The application is deployed live on AWS Cloud Infrastructure (Ubuntu 24.04 LTS):
 
 ### 🔐 4. Enterprise Security & Infrastructure Isolation
 * **Passwordless Authentication**: Powered by Descope (Magic Link, Google OAuth2, Session Tokens).
-* **Zero-Leak Secret Isolation**: API keys and private `.pem` SSH certificates isolated strictly on-server.
+
 
 ---
 
@@ -98,7 +97,7 @@ The application is deployed live on AWS Cloud Infrastructure (Ubuntu 24.04 LTS):
 
 | Layer | Technologies Used |
 | :--- | :--- |
-| **Cloud Infrastructure** | **Amazon Web Services (AWS)** — EC2 (`t3.micro`), S3 (Object Storage & Versioning), VPC, Security Groups |
+| **Cloud Infrastructure** | **Amazon Web Services (AWS)** — EC2 , S3 (Object Storage & Versioning), VPC, Security Groups |
 | **Operating System** | **Ubuntu Server 24.04 LTS** (x86_64) configured with 2GB Linux Swap Space |
 | **Web Server & Reverse Proxy** | **Nginx** (HTTP Port 80 routing, Gzip Compression, Header Forwarding) |
 | **Process Management** | **PM2 (Process Manager 2)** — Zero-downtime clustering, background daemons, systemd auto-restart |
