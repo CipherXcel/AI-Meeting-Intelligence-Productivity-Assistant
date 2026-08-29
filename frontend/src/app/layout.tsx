@@ -25,7 +25,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 
   const cookieOptions = {
     sameSite: "Lax" as const,
-    secure: process.env.NODE_ENV !== "development",
+    secure: false, // Allows session cookies over both HTTP and HTTPS
   };
 
   return (
