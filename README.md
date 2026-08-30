@@ -14,9 +14,9 @@
 ## 🚀 Live Production Deployment
 
 The application is deployed live on AWS Cloud Infrastructure (Ubuntu 24.04 LTS):
-* **🌐 Production Web App**: `http://YOUR_EC2_PUBLIC_IP`
-* **📦 Cloud Storage & Image Keeper**: `http://YOUR_EC2_PUBLIC_IP/storage`
-* **📡 Backend API Endpoint**: `http://YOUR_EC2_PUBLIC_IP/api`
+* **🌐 Production Web App**: `http://www.cipherxcel.dev`
+* **📦 Cloud Storage & Image Keeper**: `http://www.cipherxcel.dev/storage`
+* **📡 Backend API Endpoint**: `http://www.cipherxcel.dev/api`
 
 ---
 
