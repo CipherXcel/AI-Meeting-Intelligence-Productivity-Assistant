@@ -1,0 +1,761 @@
+/* Quiet workspace chrome: assistant-only history, floating account and navigation. */
+.brand {
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.7px;
+  gap: 8px;
+}
+.brand-monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1;
+}
+.workspace-brand {
+  position: absolute;
+  left: 40px;
+  top: 25px;
+  padding: 0;
+  z-index: 20;
+}
+.full-workspace .workspace-main {
+  margin-left: 0;
+}
+.floating-profile {
+  position: fixed;
+  right: 24px;
+  top: 20px;
+  z-index: 60;
+}
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background: var(--surface);
+  box-shadow: 0 3px 14px var(--shadow);
+}
+.profile-trigger .avatar {
+  height: 29px;
+  width: 29px;
+  font-size: 10px;
+}
+.profile-trigger > svg {
+  color: var(--muted);
+}
+.profile-trigger.active {
+  border-color: var(--accent);
+}
+.profile-popover {
+  width: 280px;
+  position: absolute;
+  top: 52px;
+  right: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 15px 45px var(--shadow);
+}
+.popover-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 6px 15px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.popover-identity > div {
+  min-width: 0;
+}
+.popover-identity strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.popover-identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.popover-action {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  text-align: left;
+}
+.popover-action:hover {
+  background: var(--raised);
+}
+.side-chevron {
+  margin-left: auto;
+  transform: rotate(-90deg);
+}
+.popover-themes {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 6px 0;
+  padding: 15px 6px;
+}
+.popover-themes .overline {
+  font-size: 9px;
+}
+.quick-themes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+.quick-themes button {
+  padding: 0;
+  font-size: 9px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.quick-themes button.chosen {
+  color: var(--accent);
+}
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 33px;
+  border-radius: 8px;
+  border: 1px solid #8885;
+  box-shadow: inset 0 0 0 4px #ffffff08;
+}
+.theme-swatch.amethyst {
+  background: #201d29;
+  color: #b69ae8;
+}
+.theme-swatch.ocean {
+  background: #182e40;
+  color: #90c8e9;
+}
+.theme-swatch.forest {
+  background: #21352c;
+  color: #b1cfa2;
+}
+.theme-swatch.ivory {
+  background: #fff;
+  color: #7754b7;
+}
+.chosen .theme-swatch {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.signout {
+  color: var(--muted);
+}
+.history-sidebar {
+  width: 242px;
+  padding: 27px 16px 18px;
+}
+.workspace-main {
+  margin-left: 242px;
+}
+.sidebar-brand {
+  margin-bottom: 15px;
+}
+.workspace-label {
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  margin-bottom: 20px;
+}
+.history-list {
+  margin-bottom: 0;
+}
+.history-empty {
+  font-size: 11px;
+  padding: 22px 10px;
+}
+.new-chat {
+  font-size: 11px;
+  padding: 10px;
+}
+.history-link {
+  font-size: 11px;
+}
+.history-toggle {
+  position: fixed;
+  top: 23px;
+  left: 24px;
+  z-index: 30;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.chat-layout {
+  height: 100dvh;
+  padding-top: 0;
+  grid-template-columns: minmax(0, 1fr) 270px;
+}
+.chat-heading {
+  padding: 15px 24px;
+  border-bottom: 0;
+  min-height: 76px;
+}
+.chat-heading h2 {
+  font-size: 12px;
+  font-weight: 550;
+}
+.chat-heading small {
+  font-size: 10px;
+}
+.chat-symbol {
+  border: 0;
+  padding: 5px;
+  background: none;
+}
+.chat-heading > .inline {
+  gap: 7px;
+}
+.chat-welcome {
+  max-width: 580px;
+  padding: 25px 0;
+}
+.welcome-mark {
+  height: 58px;
+  width: 70px;
+  margin-bottom: 10px;
+}
+.welcome-mark svg {
+  width: 28px;
+  height: 28px;
+}
+.chat-welcome h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  line-height: 1.3;
+}
+.chat-welcome h1 em {
+  font-family: inherit;
+  font-style: normal;
+  font-weight: 450;
+  margin-top: 0;
+}
+.chat-welcome .eyebrow {
+  font-size: 9px;
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+}
+.chat-welcome > p {
+  max-width: 360px;
+  font-size: 12px;
+  margin: 16px 0 26px;
+}
+.suggestions {
+  max-width: 440px;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.suggestions button {
+  font-size: 11px;
+  padding: 14px 12px;
+  min-height: 48px;
+  background: transparent;
+}
+.suggestions button svg {
+  width: 15px;
+  height: 15px;
+}
+.suggestions button svg:last-child {
+  width: 12px;
+}
+.composer-wrap {
+  max-width: 820px;
+  padding: 14px 24px 20px;
+}
+.composer {
+  box-shadow: 0 3px 18px var(--shadow);
+  border-radius: 12px;
+}
+.composer textarea {
+  font-size: 12px;
+}
+.composer-caption {
+  font-size: 9px;
+  line-height: 1.5;
+}
+.composer-caption > span {
+  font-size: 9px;
+}
+.message-content {
+  font-size: 13px;
+}
+.chat-queue {
+  background: var(--bg);
+  padding-top: 19px;
+}
+.queue-note {
+  margin-top: 16px;
+}
+.proposal-card {
+  border-radius: 10px;
+  padding: 14px;
+}
+.proposal-card h3 {
+  font-size: 13px;
+}
+.floating-dock {
+  width: 54px;
+  right: 20px;
+  border-radius: 16px;
+  padding: 6px;
+  gap: 5px;
+}
+.floating-dock button {
+  min-height: 39px;
+  padding: 10px;
+  border: 1px solid transparent;
+}
+.floating-dock button.active {
+  background: var(--soft);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  color: var(--accent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.floating-dock .dock-assistant {
+  color: var(--accent);
+}
+.page {
+  padding: 100px 108px 55px 42px;
+  max-width: 1240px;
+}
+.page-heading {
+  margin-bottom: 26px;
+}
+.page-heading h1 {
+  font-size: 26px;
+  letter-spacing: -0.6px;
+}
+.page-heading .eyebrow {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  margin-bottom: 8px;
+}
+.page-heading p {
+  font-size: 12px;
+  margin-top: 8px;
+}
+.overview-hero {
+  padding: 26px;
+}
+.overview-hero h2 {
+  font-size: 23px;
+}
+.hero-sparkle {
+  font-size: 80px;
+}
+.panel h2 {
+  font-size: 15px;
+}
+.stat strong {
+  font-size: 26px;
+}
+.auth-story > .brand {
+  font-size: 23px;
+}
+.auth-story h1 {
+  font-size: clamp(36px, 3.6vw, 55px);
+}
+.auth-form h2 {
+  font-size: 24px;
+}
+.profile-page {
+  max-width: 980px;
+}
+.profile-banner {
+  padding: 20px 23px;
+  background: var(--surface);
+  border-radius: 12px;
+}
+.profile-identity {
+  gap: 16px;
+}
+.profile-identity .avatar.large {
+  width: 56px;
+  height: 56px;
+  font-size: 18px;
+  border: 1px solid var(--line);
+}
+.profile-identity .eyebrow {
+  display: none;
+}
+.profile-identity h2 {
+  font-size: 19px;
+  margin: 0 0 4px;
+  letter-spacing: -0.4px;
+}
+.profile-identity p {
+  font-size: 11px;
+}
+.profile-identity small {
+  font-size: 10px;
+}
+.profile-page .stats {
+  margin: 18px 0 25px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.profile-page .stat {
+  padding: 12px 18px 18px;
+  border: 0;
+}
+.profile-page .stat:first-child {
+  padding-left: 0;
+}
+.profile-page .stat strong {
+  font-size: 23px;
+  margin-top: 6px;
+}
+.profile-page .stat > span {
+  font-size: 10px;
+}
+.profile-sections {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+  overflow-x: auto;
+}
+.profile-sections button {
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 10px 0 13px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.profile-sections button.selected {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.profile-grid {
+  display: block;
+}
+.profile-grid > .panel {
+  padding: 24px;
+  max-width: none;
+}
+.profile-grid .panel > .section-head {
+  padding-bottom: 3px;
+}
+.photo-controls {
+  margin: 18px 0;
+}
+.profile-page label {
+  font-size: 11px;
+  margin-top: 16px;
+}
+.profile-page input,
+.profile-page select {
+  font-size: 12px;
+  padding: 9px 11px;
+}
+.profile-page textarea {
+  font-size: 12px;
+}
+.profile-grid .small-copy {
+  margin-top: 17px;
+}
+.profile-page .appearance {
+  margin-top: 0;
+  padding: 24px;
+}
+.theme-grid {
+  gap: 13px;
+  margin-top: 20px;
+}
+.theme-preview {
+  height: 68px;
+}
+.save-bar {
+  padding: 20px 0;
+}
+.connections {
+  margin: 0;
+}
+.connection-row {
+  padding: 21px 0;
+}
+.profile-page .connections .pill {
+  font-size: 9px;
+}
+.theme-preview.ivory {
+  background: #fff;
+  border-color: #e6e1ef;
+}
+.theme-preview.ivory i:first-child {
+  background: #f6f4fa;
+}
+.theme-preview.ivory i:nth-child(2) {
+  background: #7951bc;
+}
+.theme-preview.ivory em {
+  background: #f0eafa;
+}
+@media (max-width: 1200px) {
+  .chat-layout {
+    grid-template-columns: minmax(0, 1fr) 245px;
+  }
+  .suggestions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .chat-heading h2 {
+    max-width: 230px;
+  }
+  .composer-caption > span {
+    display: none;
+  }
+}
+@media (max-width: 1000px) {
+  .chat-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chat-queue {
+    top: 76px;
+    bottom: 0;
+    right: 77px;
+  }
+  .chat-welcome h1 {
+    font-size: 30px;
+  }
+  .profile-page .stats .stat {
+    border: 0;
+  }
+  .profile-page .stats {
+    border-bottom: 1px solid var(--line);
+  }
+}
+@media (max-width: 760px) {
+  .workspace-main {
+    margin-left: 0;
+  }
+  .history-sidebar {
+    width: 260px;
+  }
+  .workspace-brand {
+    left: 20px;
+    top: 23px;
+  }
+  .workspace-brand .brand {
+    font-size: 18px;
+  }
+  .floating-profile {
+    top: 17px;
+    right: 17px;
+  }
+  .profile-trigger {
+    padding: 4px 7px 4px 4px;
+  }
+  .profile-popover {
+    width: 272px;
+    max-width: calc(100vw - 30px);
+    top: 48px;
+  }
+  .history-toggle {
+    left: 18px;
+    top: 20px;
+  }
+  .floating-dock {
+    left: 50%;
+    right: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 6px;
+    gap: 4px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+  }
+  .floating-dock button {
+    width: 44px;
+    height: 40px;
+    min-height: 40px;
+    padding: 9px;
+  }
+  .floating-dock button.active {
+    box-shadow: inset 0 -2px var(--accent);
+  }
+  .floating-dock button.active span {
+    display: block;
+    position: static;
+    border: 0;
+    box-shadow: none;
+    background: none;
+    padding: 0;
+    font-size: 9px;
+    opacity: 1;
+    color: var(--accent);
+  }
+  .floating-dock button.active {
+    flex-direction: column;
+    gap: 2px;
+    width: auto;
+    min-width: 51px;
+    padding: 4px 9px;
+    height: 44px;
+  }
+  .floating-dock button.active svg {
+    width: 16px;
+    height: 16px;
+  }
+  .floating-dock button.active:hover span,
+  .floating-dock button.active:focus-visible span {
+    position: static;
+  }
+  .floating-dock button:not(.active):hover span {
+    display: none;
+  }
+  .chat-layout {
+    height: 100dvh;
+    padding-top: 70px;
+    padding-bottom: 82px;
+  }
+  .chat-heading {
+    padding: 12px 18px;
+    min-height: 58px;
+  }
+  .chat-heading h2 {
+    max-width: 190px;
+  }
+  .chat-queue {
+    top: 129px;
+    right: 12px;
+    bottom: 86px;
+  }
+  .chat-welcome {
+    padding: 16px 0;
+  }
+  .chat-welcome h1 {
+    font-size: 28px;
+  }
+  .chat-welcome > p {
+    font-size: 11px;
+    margin: 12px 0 20px;
+  }
+  .chat-welcome .eyebrow {
+    font-size: 8px;
+  }
+  .welcome-mark {
+    height: 42px;
+    margin-bottom: 8px;
+  }
+  .suggestions {
+    gap: 7px;
+  }
+  .suggestions button {
+    font-size: 10px;
+    padding: 11px 9px;
+    min-height: 43px;
+  }
+  .messages {
+    padding: 8px 18px 20px;
+  }
+  .composer-wrap {
+    padding: 10px 16px 0;
+  }
+  .composer-caption {
+    font-size: 8px;
+  }
+  .page {
+    padding: 88px 20px 105px;
+  }
+  .page-heading h1 {
+    font-size: 24px;
+  }
+  .profile-banner {
+    padding: 17px;
+  }
+  .profile-page .stat {
+    padding: 10px 8px 15px;
+  }
+  .profile-page .stat > span {
+    font-size: 9px;
+  }
+  .profile-page .stat strong {
+    font-size: 22px;
+  }
+  .profile-sections {
+    gap: 21px;
+  }
+  .profile-sections button {
+    font-size: 11px;
+  }
+  .profile-grid > .panel,
+  .profile-page .appearance {
+    padding: 20px;
+  }
+  .profile-page .theme-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .save-bar p {
+    font-size: 10px;
+  }
+  .connection-row {
+    gap: 12px;
+  }
+  .profile-identity p {
+    font-size: 10px;
+  }
+  .profile-identity small {
+    font-size: 9px;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 390px) {
+  .floating-dock {
+    gap: 2px;
+  }
+  .floating-dock button {
+    width: 37px;
+  }
+  .floating-dock button.active {
+    min-width: 47px;
+    padding-inline: 6px;
+  }
+  .suggestions {
+    grid-template-columns: 1fr;
+  }
+  .chat-heading h2 {
+    max-width: 160px;
+  }
+  .profile-sections {
+    gap: 17px;
+  }
+  .brand {
+    font-size: 18px;
+  }
+  .profile-identity {
+    gap: 12px;
+  }
+  .profile-identity .avatar.large {
+    width: 45px;
+    height: 45px;
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 761px) {
+  .history-collapsed .chat-heading {
+    padding-left: 70px;
+  }
+}

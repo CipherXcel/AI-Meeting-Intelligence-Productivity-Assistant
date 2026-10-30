@@ -1,0 +1,6 @@
+{$DOMAIN} {
+  reverse_proxy app:4000 {
+    flush_interval -1
+  }
+  encode gzip
+}

@@ -1,0 +1,21 @@
+{
+  "name": "agentbuddy",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev-local.mjs",
+    "build": "npm run build -w backend && npm run build -w frontend && node scripts/stage-frontend.mjs",
+    "start": "npm start -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run dev -w backend"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "type": "module"
+}

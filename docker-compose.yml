@@ -1,23 +1,49 @@
 services:
-  postgres:
+  db:
     image: postgres:16
-    container_name: meetagent-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: agentic_calendar_app_db
+      POSTGRES_USER: meetagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: meetagent
     ports:
-      - "5443:5432"
+      - "127.0.0.1:5443:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  adminer:
-    image: adminer
-    container_name: ai-meeting-adminer
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meetagent -d meetagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  app:
+    profiles: [production]
+    build: .
     restart: unless-stopped
-    ports:
-      - "8080:8080"
-
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://meetagent:${POSTGRES_PASSWORD}@db:5432/meetagent
+      UPLOAD_DIR: /app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    expose: ["4000"]
+  proxy:
+    profiles: [production]
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
 volumes:
   postgres_data:
+  uploads:
+  caddy_data:
+  caddy_config:

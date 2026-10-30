@@ -1,286 +1,630 @@
 "use client";
-
-import { useSession, useUser } from "@descope/nextjs-sdk/client";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import SignInComponent from "@/components/auth/sign-in";
-import { MeetAgentIcon, MeetAgentLogo } from "@/components/brand/logo";
-import Image from "next/image";
 import {
-  Sparkles,
+  Sparkle,
+  LayoutDashboard,
+  ListTodo,
+  FileText,
+  CalendarDays,
+  ShieldCheck,
+  Plus,
+  Search,
+  ArrowUp,
+  ArrowUpRight,
   ArrowRight,
-  Clock,
-  Users,
-  Video,
-  Bot,
-  Shield,
-  CheckCircle2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+  ChevronRight,
+  ChevronDown,
+  Square,
   RefreshCw,
+  LockKeyhole,
 } from "lucide-react";
-
-export default function LandingPage() {
-  const { isAuthenticated, isSessionLoading } = useSession();
-  const { user } = useUser();
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<"schedule" | "briefing" | "reschedule">("schedule");
-
+import { useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useWorkspace } from "../lib/use-workspace";
+import { type Row } from "../lib/workspace";
+import { AmbientGlow } from "../components/ambient-glow";
+import { Brand } from "../components/ui";
+import { Proposals } from "../components/proposals";
+import { WorkspaceViews } from "../components/workspace-views";
+import { FocusIndicator } from "../components/focus";
+import { ProfileMenu } from "../components/profile-menu";
+import { WorkspaceDialogs } from "../components/workspace-dialogs";
+const navigation = [
+  { name: "Saarthi", icon: Sparkle },
+  { name: "Overview", icon: LayoutDashboard },
+  { name: "Tasks", icon: ListTodo },
+  { name: "Notes & files", icon: FileText },
+  { name: "Calendar", icon: CalendarDays },
+  { name: "All proposals", icon: ShieldCheck },
+] as const;
+export default function Home() {
+  const w = useWorkspace();
+  const {
+    status,
+    user,
+    view,
+    threads,
+    thread,
+    messages,
+    proposals,
+    pending,
+    busy,
+    chatBusy,
+    threadLoading,
+    progress,
+    input,
+    toast,
+    signup,
+  } = w;
+  const showQueue = w.queue && !!thread;
+  const actionPanel = useRef<HTMLElement>(null),
+    actionToggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const userEmail = user?.email || user?.name || "User";
-
-  return (
-    <div className="relative min-h-svh overflow-hidden app-shell-bg text-foreground">
-      {/* Animated background decorative orbs */}
-      <div className="landing-orb landing-orb-1" />
-      <div className="landing-orb landing-orb-2" />
-      <div className="landing-orb landing-orb-3" />
-
-      {/* Navigation Bar */}
-      <nav
-        className={`relative z-10 flex items-center justify-between px-6 py-4 md:px-12 transition-all duration-700 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-          }`}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-card border border-border/80 shadow-md p-1.5 backdrop-blur-md">
-            <MeetAgentIcon className="size-full" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-heading text-2xl font-bold tracking-tight bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
-              MeetAgent AI
-            </span>
-            <span className="hidden rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary sm:inline-block">
-              Intelligence Assistant
-            </span>
-          </div>
-        </div>
-
-
-
-
-        <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:scale-[1.02]"
-            >
-              <span>Dashboard ({userEmail})</span>
-              <ArrowRight className="size-4" />
-            </button>
-          ) : (
-            <button
-              onClick={() => router.push("/sign-in")}
-              className="rounded-full border border-border/70 bg-card/80 px-5 py-2 text-sm font-medium backdrop-blur-sm transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-            >
-              Sign In
-            </button>
-          )}
-        </div>
-      </nav>
-
-      {/* Main Hero & Login Area */}
-      <main className="relative z-10 mx-auto max-w-7xl px-6 pt-8 pb-20 md:px-10 md:pt-12">
-        <div className="grid items-start gap-12 lg:grid-cols-12">
-
-          {/* Left Column: Product Overview & Current Features */}
-          <div
-            className={`flex flex-col lg:col-span-7 transition-all duration-1000 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-              }`}
-          >
-            {/* Top Badge */}
-            <div className="inline-flex items-center gap-2 self-start rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary backdrop-blur-md">
-              <Sparkles className="size-3.5" />
-              AI Meeting Intelligence & Calendar Assistant
+    if (!showQueue) return;
+    const outside = (e: PointerEvent) => {
+      if (
+        !actionPanel.current?.contains(e.target as Node) &&
+        !actionToggle.current?.contains(e.target as Node)
+      )
+        w.setQueue(false);
+    };
+    const keyboard = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        w.setQueue(false);
+        actionToggle.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", keyboard);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", keyboard);
+    };
+  }, [showQueue]);
+  const notification = toast && (
+    <div className="toast" role="status">
+      {toast}
+      <button aria-label="Dismiss notification" onClick={() => w.setToast("")}>
+        <X size={16} />
+      </button>
+    </div>
+  );
+  if (status === "loading")
+    return (
+      <div className="boot">
+        <Brand />
+        <span className="loader" />
+        <p>Opening your private workspace…</p>
+      </div>
+    );
+  if (status === "out" || !user)
+    return (
+      <main className="auth-page auth-glass-page">
+        <AmbientGlow enabled sparkle />
+        <section className="auth-form-wrap">
+          <div className="auth-form">
+            <div className="auth-brand">
+              <Brand />
+              <span>Your daily workspace.</span>
             </div>
-
-            {/* Headline */}
-            <h1 className="mt-5 font-heading text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-              Your meetings, calendar & daily routines,{" "}
-              <span className="landing-gradient-text">managed by AI</span>
-            </h1>
-
-            {/* Subtext */}
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              MeetAgent connects directly with your <strong>Google Calendar</strong> using <strong>Google Gemini AI</strong> and <strong>Mastra agent workflows</strong> to schedule, reschedule, generate Google Meet links, and manage attendee invites naturally.
+            <span className="pill">
+              <LockKeyhole size={13} /> Your own space
+            </span>
+            <h2>{signup ? "Create an account" : "Sign in"}</h2>
+            <p>
+              {signup
+                ? "Create an account to start your workspace."
+                : "Sign in to your AgentBuddy workspace."}
             </p>
-
-            {/* Live Capabilities Highlights */}
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-2">
-              <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 backdrop-blur-sm">
-                <Video className="size-4 shrink-0 text-primary" />
-                <span className="text-xs font-medium sm:text-sm">Auto Google Meet Links</span>
+            {w.bootError && (
+              <div className="error-box">
+                {w.bootError}
+                <button onClick={w.boot} className="text-button">
+                  <RefreshCw size={14} />
+                  Retry connection
+                </button>
               </div>
-              <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 backdrop-blur-sm">
-                <Users className="size-4 shrink-0 text-primary" />
-                <span className="text-xs font-medium sm:text-sm">Smart Attendee Invites</span>
-              </div>
-              <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 backdrop-blur-sm">
-                <Clock className="size-4 shrink-0 text-primary" />
-                <span className="text-xs font-medium sm:text-sm">Free/Busy Conflict Check</span>
-              </div>
-              <div className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 backdrop-blur-sm">
-                <Bot className="size-4 shrink-0 text-primary" />
-                <span className="text-xs font-medium sm:text-sm">Gemini 3.6 AI Intelligence</span>
-              </div>
-            </div>
-
-            {/* Interactive Demo Simulation Box */}
-            <div className="mt-8 rounded-2xl border border-border/80 bg-card/80 p-5 shadow-lg backdrop-blur-md">
-              <div className="flex items-center justify-between border-b border-border/50 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Live Assistant Simulation
-                  </span>
-                </div>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => setActiveTab("schedule")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${activeTab === "schedule" ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                      }`}
-                  >
-                    Schedule
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("briefing")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${activeTab === "briefing" ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                      }`}
-                  >
-                    Briefing
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("reschedule")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${activeTab === "reschedule" ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                      }`}
-                  >
-                    Reschedule
-                  </button>
-                </div>
-              </div>
-
-              {/* Simulated chat preview based on active tab */}
-              <div className="mt-4 space-y-3">
-                <div className="flex justify-end">
-                  <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-xs text-primary-foreground sm:text-sm">
-                    {activeTab === "schedule" && "Create a meeting tomorrow at 10:00 AM for 30m with team@example.com"}
-                    {activeTab === "briefing" && "What's on my schedule today?"}
-                    {activeTab === "reschedule" && "Move my 2:00 PM sync to 4:00 PM tomorrow"}
-                  </div>
-                </div>
-
-                <div className="flex justify-start">
-                  <div className="max-w-md rounded-2xl rounded-tl-sm border border-border bg-muted/60 p-3.5 text-xs leading-relaxed text-foreground sm:text-sm">
-                    {activeTab === "schedule" && (
-                      <div>
-                        <p className="font-semibold text-primary mb-1.5 flex items-center gap-1.5">
-                          <CheckCircle2 className="size-4 text-emerald-600" />
-                          Meeting created on Google Calendar!
-                        </p>
-                        <ul className="space-y-1 text-xs text-muted-foreground">
-                          <li>• <strong>Title:</strong> Project Sync</li>
-                          <li>• <strong>Time:</strong> Tomorrow, 10:00 AM – 10:30 AM</li>
-                          <li>• <strong>Attendees:</strong> team@example.com</li>
-                          <li>• <strong>Meet Link:</strong> <span className="text-primary underline">meet.google.com/xyz-abcd-efg</span></li>
-                        </ul>
-                      </div>
-                    )}
-                    {activeTab === "briefing" && (
-                      <div>
-                        <p className="font-semibold text-primary mb-1">Here is your schedule for today:</p>
-                        <ul className="space-y-1.5 text-xs text-muted-foreground">
-                          <li>• <strong>10:00 AM</strong> — Sprint Planning (Google Meet)</li>
-                          <li>• <strong>02:30 PM</strong> — Client Architecture Review</li>
-                          <li>• <strong>04:45 PM</strong> — Daily Wrap-up</li>
-                        </ul>
-                      </div>
-                    )}
-                    {activeTab === "reschedule" && (
-                      <div>
-                        <p className="font-semibold text-primary mb-1 flex items-center gap-1.5">
-                          <RefreshCw className="size-3.5 text-primary" />
-                          Event rescheduled successfully:
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Sync moved to <strong>Tomorrow at 4:00 PM</strong>. Updated calendar invitations sent to all participants.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            )}
+            <form onSubmit={w.login}>
+              {signup && (
+                <label>
+                  Your name
+                  <input
+                    name="name"
+                    autoComplete="name"
+                    required
+                    maxLength={80}
+                    placeholder="How should we call you?"
+                  />
+                </label>
+              )}
+              <label>
+                Email address
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  placeholder="you@example.com"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete={signup ? "new-password" : "current-password"}
+                  minLength={10}
+                  maxLength={128}
+                  required
+                  placeholder={
+                    signup ? "At least 10 characters" : "Enter your password"
+                  }
+                />
+              </label>
+              <button className="primary auth-submit" disabled={busy}>
+                {busy
+                  ? "Signing in..."
+                  : signup
+                    ? "Create account"
+                    : "Sign in to AgentBuddy"}
+                <ArrowRight size={18} />
+              </button>
+            </form>
+            <p className="auth-toggle">
+              {signup ? "Already have an account?" : "New around here?"}{" "}
+              <button onClick={() => w.setSignup(!signup)}>
+                {signup ? "Sign in" : "Create an account"}
+              </button>
+            </p>
+            <div className="auth-footnote">
+              <ShieldCheck size={17} />
+              Calendar changes always wait for your approval.
             </div>
           </div>
-
-          {/* Right Column: Direct Sign-In & Authentication Card */}
-          <div
-            className={`flex flex-col lg:col-span-5 transition-all duration-1000 delay-200 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-              }`}
-          >
-            <div className="rounded-3xl border border-border/80 bg-card/90 p-6 shadow-2xl backdrop-blur-xl ring-1 ring-border/50 sm:p-8">
-              <div className="mb-5 flex flex-col items-center text-center">
-                <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-card border border-border/80 shadow-md p-2 backdrop-blur-md">
-                  <MeetAgentIcon className="size-full" />
+        </section>
+        {notification}
+      </main>
+    );
+  const visibleThreads = threads.filter((t) =>
+    t.title.toLowerCase().includes(w.historySearch.toLowerCase()),
+  );
+  const groupName = (t: Row) => {
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: user.timezone,
+    });
+    const date = new Date(t.updated_at || t.created_at).toLocaleDateString(
+      "en-CA",
+      { timeZone: user.timezone },
+    );
+    return date === today
+      ? "Today"
+      : Date.now() - new Date(t.updated_at || t.created_at).getTime() <
+          7 * 86400000
+        ? "Previous 7 days"
+        : "Earlier";
+  };
+  const currentTitle = threads.find((t) => t.id === thread)?.title || "Saarthi";
+  return (
+    <div
+      className={`shell ${view === "Saarthi" ? "assistant-view" : "full-workspace"} ${w.collapsed ? "history-collapsed" : ""}`}
+    >
+      <AmbientGlow enabled />
+      {view === "Saarthi" && w.sidebar && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Close conversations"
+          onClick={() => w.setSidebar(false)}
+        />
+      )}
+      {view === "Saarthi" && (
+        <aside className={`history-sidebar ${w.sidebar ? "mobile-open" : ""}`}>
+          <div className="sidebar-brand">
+            <Brand />
+            <button
+              className="icon-button"
+              aria-label="Close conversation panel"
+              onClick={() => {
+                w.setCollapsed(true);
+                w.setSidebar(false);
+              }}
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          </div>
+          <p className="workspace-label">YOUR CONVERSATIONS</p>
+          <button className="new-chat" disabled={chatBusy} onClick={w.newChat}>
+            <Plus size={17} />
+            New chat<span>↗</span>
+          </button>
+          <label className="search-field">
+            <Search size={15} />
+            <input
+              aria-label="Search conversations"
+              placeholder="Find a conversation"
+              value={w.historySearch}
+              onChange={(e) => w.setHistorySearch(e.target.value)}
+            />
+          </label>
+          <div className="history-list">
+            {visibleThreads.map((t, i) => (
+              <div key={t.id}>
+                {(i === 0 ||
+                  groupName(t) !== groupName(visibleThreads[i - 1])) && (
+                  <p className="history-group">{groupName(t)}</p>
+                )}
+                <div
+                  className={`history-row ${thread === t.id ? "active" : ""}`}
+                >
+                  <button
+                    disabled={chatBusy}
+                    className="history-link"
+                    onClick={() => w.openThread(t.id)}
+                  >
+                    <MessageSquare size={15} />
+                    <span>{t.title}</span>
+                  </button>
+                  <div className="history-actions">
+                    <button
+                      disabled={chatBusy}
+                      aria-label={`Rename ${t.title}`}
+                      onClick={() => {
+                        w.setSelected(t);
+                        w.setModal("rename");
+                      }}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      disabled={chatBusy}
+                      aria-label={`Delete ${t.title}`}
+                      onClick={() => w.remove("threads", t)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-                <h2 className="font-heading text-2xl font-bold tracking-tight">
-                  {isAuthenticated ? "Welcome to MeetAgent" : "Get Started / Sign In"}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                  {isAuthenticated
-                    ? "You are logged in and ready to manage your calendar."
-                    : "Sign in with Descope to link your Google Calendar."}
+              </div>
+            ))}
+            {!visibleThreads.length && (
+              <p className="history-empty">
+                {w.historySearch
+                  ? "No conversations match."
+                  : "Your conversations will find a home here."}
+              </p>
+            )}
+          </div>
+          <div className="sidebar-connection">
+            <div className="sidebar-connection-identity">
+              <span
+                className={`sidebar-calendar-icon ${user.calendarConnected ? "connected" : ""}`}
+              >
+                <CalendarDays size={18} />
+              </span>
+              <span
+                className={`status-light ${user.calendarConnected ? "connected" : user.calendarConfigured === false ? "setup" : "disconnected"}`}
+              />
+              <span>
+                Google Calendar
+                <small>
+                  {user.calendarConnected
+                    ? "Connected"
+                    : user.calendarConfigured === false
+                      ? "Setup needed"
+                      : "Not connected"}
+                </small>
+              </span>
+            </div>
+            <button
+              className="text-button"
+              aria-label="Inspect Google Calendar connection"
+              onClick={() => {
+                w.navigate("Profile");
+                requestAnimationFrame(() =>
+                  document
+                    .getElementById("calendar-connection")
+                    ?.scrollIntoView({ block: "center", behavior: "instant" }),
+                );
+              }}
+            >
+              Inspect <ArrowUpRight size={12} />
+            </button>
+          </div>
+        </aside>
+      )}
+      <div className="workspace-main">
+        <ProfileMenu w={w} />
+        <FocusIndicator w={w} />
+        {view !== "Saarthi" && (
+          <button
+            className="workspace-brand"
+            onClick={() => w.navigate("Saarthi")}
+            aria-label="AgentBuddy home"
+          >
+            <Brand />
+          </button>
+        )}
+        {view === "Saarthi" && (
+          <button
+            className="icon-button history-toggle"
+            aria-label="Open conversations"
+            onClick={() => {
+              w.setCollapsed(false);
+              w.setSidebar(true);
+            }}
+          >
+            <PanelLeftOpen size={18} />
+          </button>
+        )}
+        <nav className="floating-dock" aria-label="Workspace navigation">
+          {navigation.map(({ name, icon: Icon }) => (
+            <button
+              key={name}
+              aria-label={name}
+              aria-current={view === name ? "page" : undefined}
+              className={`${view === name ? "active" : ""} ${name === "Saarthi" ? "dock-assistant" : ""}`}
+              onClick={() => w.navigate(name)}
+            >
+              <Icon size={18} />
+              <span>{name}</span>
+              {name === "All proposals" && pending.length > 0 && <i />}
+            </button>
+          ))}
+        </nav>
+        {view === "Saarthi" ? (
+          <div className="chat-layout queue-hidden">
+            <section className="chat-main">
+              <div className="chat-heading">
+                <div className="inline">
+                  <span className="chat-symbol">
+                    <Sparkle size={18} />
+                  </span>
+                  <div>
+                    <h2>{currentTitle}</h2>
+                    <small>
+                      {thread
+                        ? "Saved conversation"
+                        : "Your workspace assistant"}
+                    </small>
+                  </div>
+                </div>
+                {thread && (
+                  <button
+                    className={`queue-toggle ${w.queue ? "active" : ""}`}
+                    ref={actionToggle}
+                    aria-label="Conversation actions"
+                    aria-controls="conversation-actions"
+                    aria-expanded={w.queue}
+                    onClick={() => w.setQueue(!w.queue)}
+                  >
+                    <ShieldCheck size={17} />
+                    <span>Actions</span>
+                    <b>
+                      {
+                        proposals.filter(
+                          (p) =>
+                            p.thread_id === thread && p.status === "pending",
+                        ).length
+                      }
+                    </b>
+                    <ChevronDown size={13} className="actions-chevron" />
+                  </button>
+                )}
+              </div>
+              {showQueue && (
+                <aside
+                  ref={actionPanel}
+                  id="conversation-actions"
+                  className="conversation-actions"
+                  aria-label="Conversation actions"
+                >
+                  <Proposals
+                    key={thread}
+                    items={proposals.filter((p) => p.thread_id === thread)}
+                    user={user}
+                    busy={busy}
+                    act={w.proposalAction}
+                    compact
+                  />
+                  <button
+                    className="text-button"
+                    onClick={() => w.navigate("All proposals")}
+                  >
+                    All proposals <ArrowUpRight size={13} />
+                  </button>
+                </aside>
+              )}
+              <div className="messages">
+                {threadLoading ? (
+                  <div className="empty">
+                    <span className="loader" />
+                    <p>Opening conversation…</p>
+                  </div>
+                ) : !messages.length ? (
+                  <div className="chat-welcome">
+                    <span className="welcome-mark">
+                      <Sparkle size={38} strokeWidth={1} fill="currentColor" />
+                    </span>
+                    <span className="eyebrow">SAARTHI · YOUR AI ASSISTANT</span>
+                    <h1>
+                      How can I help,
+                      <br />
+                      <em>{user.name.split(" ")[0]}?</em>
+                    </h1>
+                    <p>
+                      Plan meetings, work with your notes, and keep track of
+                      next steps.
+                    </p>
+                    <div className="suggestions">
+                      {[
+                        {
+                          icon: CalendarDays,
+                          title: "Plan a meeting",
+                          text: "Help me find a free slot for a meeting during my working hours.",
+                        },
+                        {
+                          icon: FileText,
+                          title: "Explore my notes",
+                          text: "Help me find decisions and action items in my saved notes.",
+                        },
+                        {
+                          icon: ListTodo,
+                          title: "Review my tasks",
+                          text: "Show my pending tasks and help me decide what to work on next.",
+                        },
+                        {
+                          icon: MessageSquare,
+                          title: "Prepare an agenda",
+                          text: "Help me prepare an agenda for my next meeting.",
+                        },
+                      ].map((s) => (
+                        <button
+                          key={s.title}
+                          disabled={chatBusy}
+                          onClick={() => {
+                            w.setInput(s.text);
+                            w.composer.current?.focus();
+                          }}
+                        >
+                          <s.icon size={18} />
+                          <span>{s.title}</span>
+                          <ArrowUpRight size={15} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((m, i) => (
+                    <article className={`message ${m.role}`} key={m.id || i}>
+                      <div className="message-content">
+                        <span className="message-author">
+                          {m.role === "user" ? "You" : "Saarthi"}
+                        </span>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ href, children }) =>
+                              href?.startsWith("#note-") ? (
+                                <button
+                                  className="text-button"
+                                  onClick={() =>
+                                    w.readDoc({ id: href.slice(6) })
+                                  }
+                                >
+                                  {children}
+                                </button>
+                              ) : (
+                                <a href={href} target="_blank" rel="noreferrer">
+                                  {children}
+                                </a>
+                              ),
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    </article>
+                  ))
+                )}
+                {chatBusy && (
+                  <div className="thinking" role="status">
+                    <span className="loader" />
+                    {progress}
+                  </div>
+                )}
+                <div ref={w.bottom} />
+              </div>
+              <div className="composer-wrap">
+                <form
+                  className="composer"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void w.send();
+                  }}
+                >
+                  <textarea
+                    ref={w.composer}
+                    aria-label="Message Saarthi"
+                    placeholder="Ask, plan, or untangle a thought…"
+                    value={input}
+                    maxLength={5000}
+                    rows={2}
+                    disabled={threadLoading}
+                    onChange={(e) => w.setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        !e.shiftKey &&
+                        !e.nativeEvent.isComposing
+                      ) {
+                        e.preventDefault();
+                        void w.send();
+                      }
+                    }}
+                  />
+                  <div className="composer-tools">
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Upload a note"
+                      disabled={busy || chatBusy}
+                      onClick={() => w.upload.current?.click()}
+                    >
+                      <Plus size={20} />
+                    </button>
+                    <span>
+                      <Sparkle size={13} />
+                      Saarthi
+                    </span>
+                    {input.length > 4500 && <small>{input.length}/5000</small>}
+                    {chatBusy ? (
+                      <button
+                        type="button"
+                        className="send-button"
+                        aria-label="Stop response"
+                        onClick={() => w.abort.current?.abort()}
+                      >
+                        <Square size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        className="send-button"
+                        aria-label="Send message"
+                        disabled={!input.trim() || threadLoading}
+                      >
+                        <ArrowUp size={20} />
+                      </button>
+                    )}
+                  </div>
+                </form>
+                <p className="composer-caption">
+                  <ShieldCheck size={12} />
+                  You’re in control. Calendar changes need your approval.
+                  <span>↵ send · shift ↵ new line</span>
                 </p>
               </div>
-
-              {/* Auth state rendering */}
-              {isSessionLoading ? (
-                <div className="flex flex-col items-center justify-center py-10 text-sm text-muted-foreground">
-                  <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent mb-3" />
-                  Checking session...
-                </div>
-              ) : isAuthenticated ? (
-                <div className="flex flex-col gap-4 py-4">
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-center">
-                    <p className="text-xs text-muted-foreground">Signed in as:</p>
-                    <p className="font-semibold text-foreground text-sm mt-0.5">{userEmail}</p>
-                  </div>
-                  <button
-                    onClick={() => router.push("/dashboard")}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:scale-[1.01]"
-                  >
-                    <span>Open Dashboard</span>
-                    <ArrowRight className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => router.push("/storage")}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border/80 bg-muted/50 text-xs font-semibold text-foreground shadow-sm transition-all hover:bg-muted"
-                  >
-                    <span>📦 Cloud Storage & Image Keeper</span>
-                    <ArrowRight className="size-3.5" />
-                  </button>
-
-                </div>
-              ) : (
-                <div className="mt-2 min-h-[300px]">
-                  <SignInComponent />
-                </div>
-              )}
-
-              {/* Security info note */}
-              <div className="mt-5 border-t border-border/60 pt-4 text-center text-xs text-muted-foreground">
-                <Shield className="inline size-3.5 text-primary mr-1 -mt-0.5" />
-                Protected with enterprise authentication & OAuth 2.0.
-              </div>
-            </div>
+            </section>
           </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border/50 py-6 text-center text-xs text-muted-foreground backdrop-blur-md">
-        © {new Date().getFullYear()} MeetAgent AI. All rights reserved.
-      </footer>
+        ) : (
+          <WorkspaceViews w={w} />
+        )}
+      </div>
+      <input
+        ref={w.upload}
+        hidden
+        type="file"
+        accept=".pdf,.txt,.md,.srt,.vtt"
+        onChange={(e) => w.uploadFile(e.target.files?.[0])}
+      />
+      {notification}
+      <WorkspaceDialogs w={w} />
     </div>
   );
 }

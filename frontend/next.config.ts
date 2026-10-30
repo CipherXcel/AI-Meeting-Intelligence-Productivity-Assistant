@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  output: "standalone",
+const config: NextConfig = {
+  output: "export",
+  devIndicators: false,
+  images: { unoptimized: true },
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
 };
-
-export default nextConfig;
+export default config;

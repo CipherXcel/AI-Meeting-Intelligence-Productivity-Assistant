@@ -1,39 +1,36 @@
 {
-  "name": "meetagent-backend",
-  "version": "1.0.0",
-  "description": "MeetAgent AI — Express 5 REST API & Mastra Agentic Engine",
-  "author": "Priyanshu Raj <spriyanshuraj09@gmail.com> (https://github.com/CipherXcel)",
-  "license": "MIT",
-  "main": "index.js",
+  "name": "@meetagent/backend",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate": "tsx scripts/migrate.ts"
+    "migrate": "tsx src/migrate.ts"
   },
-  "type": "module",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1121.0",
-    "@descope/mcp-express": "^1.6.0",
-    "@descope/node-sdk": "^2.14.0",
-    "@mastra/core": "^1.59.0",
-    "@mastra/libsql": "^1.20.0",
-    "@mastra/memory": "^1.26.2",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "googleapis": "^174.0.1",
-    "multer": "^2.3.0",
-    "pg": "^8.23.0",
-    "zod": "^4.4.3"
+    "@google/genai": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "argon2": "^0.44.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.0",
+    "helmet": "^8.0.0",
+    "jose": "^6.0.0",
+    "multer": "^2.0.0",
+    "pg": "^8.16.0",
+    "zod": "^4.0.0",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/multer": "^2.2.0",
-    "@types/node": "^26.2.0",
-    "@types/pg": "^8.21.0",
-    "tsx": "^4.23.11",
-    "typescript": "^7.0.2"
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.0",
+    "@types/cookie-parser": "^1.4.0",
+    "@types/pg": "^8.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/pdf-parse": "^1.1.0"
   }
 }
