@@ -2,6 +2,63 @@
   color: var(--accent);
   overflow: visible;
 }
+.chat-main {
+  --chat-column: 1120px;
+  --chat-gutter: clamp(16px, 2.6vw, 40px);
+}
+.chat-main > .chat-heading,
+.chat-main > .messages,
+.chat-main > .composer-wrap {
+  width: calc(100% - 2 * var(--chat-gutter));
+  max-width: var(--chat-column);
+  margin-inline: auto;
+}
+.chat-main > .chat-heading {
+  padding: 15px 0;
+  flex-shrink: 0;
+}
+.chat-main > .messages {
+  padding: 10px 0 24px;
+  scrollbar-width: thin;
+}
+.chat-main > .composer-wrap {
+  padding: 12px 0 16px;
+  margin-block: 0;
+  flex-shrink: 0;
+}
+.chat-main .composer textarea {
+  display: block;
+  min-height: 62px;
+  max-height: min(220px, 28dvh);
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.chat-main .composer-caption {
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 10px;
+}
+.chat-main .composer-caption > svg {
+  flex-shrink: 0;
+  align-self: center;
+}
+.chat-main .conversation-actions {
+  right: max(var(--chat-gutter), calc((100% - var(--chat-column)) / 2));
+}
+@media (max-width: 700px) {
+  .chat-main > .composer-wrap {
+    padding-bottom: 0;
+  }
+  .chat-main .composer textarea {
+    min-height: 48px;
+    font-size: 14px;
+  }
+  .chat-main .composer-caption {
+    justify-content: flex-start;
+    font-size: 8px;
+  }
+}
 .message {
   width: 100%;
   max-width: 850px;

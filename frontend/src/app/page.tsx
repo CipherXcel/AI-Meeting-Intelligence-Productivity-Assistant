@@ -67,6 +67,12 @@ export default function Home() {
   const actionPanel = useRef<HTMLElement>(null),
     actionToggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
+    const textarea = w.composer.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [input, view, status]);
+  useEffect(() => {
     if (!showQueue) return;
     const outside = (e: PointerEvent) => {
       if (
