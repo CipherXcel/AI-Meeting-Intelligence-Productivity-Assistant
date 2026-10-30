@@ -80,7 +80,10 @@ export async function api(
             : JSON.stringify(body),
     });
   let r = await request();
-  if (r.status === 401 && !path.startsWith("/auth/")) {
+  if (
+    r.status === 401 &&
+    (!path.startsWith("/auth/") || path === "/auth/change-password")
+  ) {
     if (await restoreSession()) r = await request();
     else {
       window.dispatchEvent(new Event("session-expired"));

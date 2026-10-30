@@ -4,6 +4,7 @@ import "./workspace-chrome.css";
 import "./focus-workspace.css";
 import "./glass.css";
 import "./calendar-chat.css";
+import "./profile-settings.css";
 export const metadata: Metadata = {
   title: "AgentBuddy · Your personal workspace",
   description:

@@ -12,9 +12,15 @@ import {
   HardDrive,
   ArrowUpRight,
   RefreshCw,
+  MessageSquare,
+  CheckCheck,
+  FileText,
+  LockKeyhole,
+  ShieldCheck,
 } from "lucide-react";
 import { type Row, defaults, profileOf, themes, api } from "../lib/workspace";
-import { Avatar, Heading, Stat } from "./ui";
+import { Avatar, Heading } from "./ui";
+import { AccountSecurity } from "./account-security";
 type Props = {
   user: Row;
   tasks: Row[];
@@ -71,6 +77,12 @@ export function Profile({
   }
 
   const file = useRef<HTMLInputElement>(null);
+  const usedBytes = docs.reduce((sum, d) => sum + (Number(d.size) || 0), 0);
+  const usedMB = usedBytes / 1024 / 1024;
+  const storageLabel =
+    usedMB < 1
+      ? `${Math.ceil(usedBytes / 1024)} KB`
+      : `${usedMB.toFixed(1)} MB`;
   useEffect(() => {
     setDraft((d) => ({
       ...d,
@@ -160,21 +172,61 @@ export function Profile({
                 <small>{user.email}</small>
               </div>
             </div>
+            <div className="profile-summary-meta">
+              <span>
+                <Clock3 size={14} />
+                {user.timezone}
+              </span>
+              <span>
+                <CalendarDays size={14} />
+                {user.duration} min meetings
+              </span>
+            </div>
           </section>
-          <div className="stats">
-            <Stat label="Conversations" value={threads.length} />
-            <Stat
-              label="Tasks completed"
-              value={tasks.filter((t) => t.status === "done").length}
-            />
-            <Stat label="Saved documents" value={docs.length} />
+          <div
+            className="profile-metrics"
+            aria-label="Your workspace at a glance"
+          >
+            {[
+              {
+                label: "Conversations",
+                value: threads.length,
+                detail: "Saved chat history",
+                icon: MessageSquare,
+                tone: "purple",
+              },
+              {
+                label: "Tasks completed",
+                value: tasks.filter((t) => t.status === "done").length,
+                detail: `Across ${tasks.length} tasks`,
+                icon: CheckCheck,
+                tone: "cyan",
+              },
+              {
+                label: "Saved notes",
+                value: docs.length,
+                detail: `${storageLabel} of documents`,
+                icon: FileText,
+                tone: "neutral",
+              },
+            ].map(({ label, value, detail, icon: Icon, tone }) => (
+              <article className={`profile-metric ${tone}`} key={label}>
+                <div className="profile-metric-heading">
+                  <span>{label}</span>
+                  <Icon size={17} aria-hidden="true" />
+                </div>
+                <strong>{value}</strong>
+                <small>{detail}</small>
+              </article>
+            ))}
           </div>
           <nav className="profile-sections" aria-label="Profile sections">
             {[
-              ["personal", "Personal"],
-              ["preferences", "Preferences"],
-              ["appearance", "Appearance"],
-            ].map(([id, label]) => (
+              { id: "personal", label: "Personal", icon: UserRound },
+              { id: "preferences", label: "Preferences", icon: Clock3 },
+              { id: "appearance", label: "Appearance", icon: Palette },
+              { id: "security", label: "Security", icon: ShieldCheck },
+            ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
@@ -182,304 +234,317 @@ export function Profile({
                 className={section === id ? "selected" : ""}
                 onClick={() => setSection(id)}
               >
+                <Icon size={15} aria-hidden="true" />
                 {label}
               </button>
             ))}
           </nav>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setSaving(true);
-              try {
-                await save(draft);
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <div className="profile-grid">
-              {section === "personal" && (
-                <div className="panel">
-                  <div className="section-head">
-                    <h2>
-                      <UserRound size={18} />
-                      Personal details
-                    </h2>
-                  </div>
-                  <div className="photo-controls">
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => file.current?.click()}
-                    >
-                      <Camera size={16} />
-                      Change photo
-                    </button>
-                    {p.avatar && (
+          {section === "security" ? (
+            <AccountSecurity />
+          ) : (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                  await save(draft);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              <div className="profile-grid">
+                {section === "personal" && (
+                  <div className="panel">
+                    <div className="section-head">
+                      <h2>
+                        <UserRound size={18} />
+                        Personal details
+                      </h2>
+                    </div>
+                    <div className="photo-controls">
                       <button
                         type="button"
-                        className="text-button"
-                        onClick={() => change("avatar", "")}
+                        className="secondary"
+                        onClick={() => file.current?.click()}
                       >
-                        Remove
+                        <Camera size={16} />
+                        Change photo
                       </button>
-                    )}
-                    <input
-                      ref={file}
-                      type="file"
-                      hidden
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(e) => photo(e.target.files?.[0])}
-                    />
-                  </div>
-                  <label>
-                    Display name
-                    <input
-                      required
-                      maxLength={80}
-                      value={draft.name}
-                      onChange={(e) =>
-                        setDraft({ ...draft, name: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Account email
-                    <input value={draft.email} readOnly />
-                    <small>Your sign-in email</small>
-                  </label>
-                  <div className="form-grid">
-                    <label>
-                      Role
+                      {p.avatar && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => change("avatar", "")}
+                        >
+                          Remove
+                        </button>
+                      )}
                       <input
+                        ref={file}
+                        type="file"
+                        hidden
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(e) => photo(e.target.files?.[0])}
+                      />
+                    </div>
+                    <label>
+                      Display name
+                      <input
+                        required
                         maxLength={80}
-                        value={p.role}
-                        placeholder="What do you do?"
-                        onChange={(e) => change("role", e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Organisation
-                      <input
-                        maxLength={100}
-                        value={p.organisation}
-                        placeholder="Where you do it"
-                        onChange={(e) => change("organisation", e.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <label>
-                    A little about you
-                    <textarea
-                      rows={3}
-                      maxLength={500}
-                      value={p.bio}
-                      placeholder="Your focus, interests, or what you’re working on…"
-                      onChange={(e) => change("bio", e.target.value)}
-                    />
-                    <small>{p.bio.length}/500</small>
-                  </label>
-                </div>
-              )}
-              {section === "preferences" && (
-                <div className="panel">
-                  <div className="section-head">
-                    <h2>
-                      <Clock3 size={18} />
-                      Working preferences
-                    </h2>
-                  </div>
-                  <label>
-                    Timezone
-                    <input
-                      required
-                      list="timezones"
-                      value={draft.timezone}
-                      onChange={(e) =>
-                        setDraft({ ...draft, timezone: e.target.value })
-                      }
-                    />
-                    <datalist id="timezones">
-                      {[
-                        "Asia/Kolkata",
-                        "Asia/Dubai",
-                        "Asia/Singapore",
-                        "Europe/London",
-                        "Europe/Berlin",
-                        "America/New_York",
-                        "America/Los_Angeles",
-                        "Australia/Sydney",
-                        "UTC",
-                      ].map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </datalist>
-                  </label>
-                  <div className="form-grid">
-                    <label>
-                      Default meeting
-                      <select
-                        value={draft.duration}
+                        value={draft.name}
                         onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            duration: Number(e.target.value),
-                          })
+                          setDraft({ ...draft, name: e.target.value })
                         }
-                      >
-                        {Array.from(
-                          new Set([
-                            15,
-                            20,
-                            30,
-                            45,
-                            60,
-                            90,
-                            120,
-                            draft.duration,
-                          ]),
-                        )
-                          .sort((a, b) => a - b)
-                          .map((n) => (
-                            <option key={n} value={n}>
-                              {n} minutes
-                            </option>
-                          ))}
-                      </select>
+                      />
                     </label>
                     <label>
-                      Time format
+                      Account email
+                      <input value={draft.email} readOnly />
+                      <small>Your sign-in email</small>
+                    </label>
+                    <div className="form-grid">
+                      <label>
+                        Role
+                        <input
+                          maxLength={80}
+                          value={p.role}
+                          placeholder="What do you do?"
+                          onChange={(e) => change("role", e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Organisation
+                        <input
+                          maxLength={100}
+                          value={p.organisation}
+                          placeholder="Where you do it"
+                          onChange={(e) =>
+                            change("organisation", e.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      A little about you
+                      <textarea
+                        rows={3}
+                        maxLength={500}
+                        value={p.bio}
+                        placeholder="Your focus, interests, or what you’re working on…"
+                        onChange={(e) => change("bio", e.target.value)}
+                      />
+                      <small>{p.bio.length}/500</small>
+                    </label>
+                  </div>
+                )}
+                {section === "preferences" && (
+                  <div className="panel">
+                    <div className="section-head">
+                      <h2>
+                        <Clock3 size={18} />
+                        Working preferences
+                      </h2>
+                    </div>
+                    <label>
+                      Timezone
+                      <input
+                        required
+                        list="timezones"
+                        value={draft.timezone}
+                        onChange={(e) =>
+                          setDraft({ ...draft, timezone: e.target.value })
+                        }
+                      />
+                      <datalist id="timezones">
+                        {[
+                          "Asia/Kolkata",
+                          "Asia/Dubai",
+                          "Asia/Singapore",
+                          "Europe/London",
+                          "Europe/Berlin",
+                          "America/New_York",
+                          "America/Los_Angeles",
+                          "Australia/Sydney",
+                          "UTC",
+                        ].map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
+                      </datalist>
+                    </label>
+                    <div className="form-grid">
+                      <label>
+                        Default meeting
+                        <select
+                          value={draft.duration}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              duration: Number(e.target.value),
+                            })
+                          }
+                        >
+                          {Array.from(
+                            new Set([
+                              15,
+                              20,
+                              30,
+                              45,
+                              60,
+                              90,
+                              120,
+                              draft.duration,
+                            ]),
+                          )
+                            .sort((a, b) => a - b)
+                            .map((n) => (
+                              <option key={n} value={n}>
+                                {n} minutes
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Time format
+                        <select
+                          value={p.timeFormat}
+                          onChange={(e) => change("timeFormat", e.target.value)}
+                        >
+                          <option value="12">12 hour · 2:30 PM</option>
+                          <option value="24">24 hour · 14:30</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>Working days</label>
+                    <div className="weekdays">
+                      {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                        <button
+                          type="button"
+                          key={i}
+                          aria-label={
+                            [
+                              "Sunday",
+                              "Monday",
+                              "Tuesday",
+                              "Wednesday",
+                              "Thursday",
+                              "Friday",
+                              "Saturday",
+                            ][i]
+                          }
+                          aria-pressed={p.workingDays.includes(i)}
+                          className={
+                            p.workingDays.includes(i) ? "selected" : ""
+                          }
+                          onClick={() =>
+                            change(
+                              "workingDays",
+                              p.workingDays.includes(i)
+                                ? p.workingDays.filter((n: number) => n !== i)
+                                : [...p.workingDays, i],
+                            )
+                          }
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="form-grid">
+                      <label>
+                        Start of day
+                        <input
+                          type="time"
+                          required
+                          value={p.workStart}
+                          onChange={(e) => change("workStart", e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        End of day
+                        <input
+                          type="time"
+                          required
+                          value={p.workEnd}
+                          onChange={(e) => change("workEnd", e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <p className="muted small-copy">
+                      Saarthi uses your timezone, meeting length and working
+                      preferences when suggesting a schedule.
+                    </p>
+                    <label>
+                      Display density
                       <select
-                        value={p.timeFormat}
-                        onChange={(e) => change("timeFormat", e.target.value)}
+                        value={p.density}
+                        onChange={(e) => change("density", e.target.value)}
                       >
-                        <option value="12">12 hour · 2:30 PM</option>
-                        <option value="24">24 hour · 14:30</option>
+                        <option value="comfortable">
+                          Comfortable · room to breathe
+                        </option>
+                        <option value="compact">Compact · more in view</option>
                       </select>
                     </label>
                   </div>
-                  <label>Working days</label>
-                  <div className="weekdays">
-                    {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                )}
+              </div>
+              {section === "appearance" && (
+                <section className="panel appearance">
+                  <div className="section-head">
+                    <div>
+                      <h2>
+                        <Palette size={18} />
+                        Workspace theme
+                      </h2>
+                      <p className="muted small-copy">
+                        Choose the colours you work best in.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="theme-grid">
+                    {themes.map((t) => (
                       <button
                         type="button"
-                        key={i}
-                        aria-label={
-                          [
-                            "Sunday",
-                            "Monday",
-                            "Tuesday",
-                            "Wednesday",
-                            "Thursday",
-                            "Friday",
-                            "Saturday",
-                          ][i]
-                        }
-                        aria-pressed={p.workingDays.includes(i)}
-                        className={p.workingDays.includes(i) ? "selected" : ""}
-                        onClick={() =>
-                          change(
-                            "workingDays",
-                            p.workingDays.includes(i)
-                              ? p.workingDays.filter((n: number) => n !== i)
-                              : [...p.workingDays, i],
-                          )
-                        }
+                        key={t.id}
+                        className={`theme-option ${p.theme === t.id ? "chosen" : ""}`}
+                        onClick={() => change("theme", t.id)}
+                        aria-pressed={p.theme === t.id}
                       >
-                        {d}
+                        <span className={`theme-preview ${t.id}`}>
+                          <i />
+                          <i />
+                          <b />
+                          <em />
+                        </span>
+                        <span className="section-head">
+                          <strong>{t.name}</strong>
+                          {p.theme === t.id && <Check size={16} />}
+                        </span>
+                        <small>{t.detail}</small>
                       </button>
                     ))}
                   </div>
-                  <div className="form-grid">
-                    <label>
-                      Start of day
-                      <input
-                        type="time"
-                        required
-                        value={p.workStart}
-                        onChange={(e) => change("workStart", e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      End of day
-                      <input
-                        type="time"
-                        required
-                        value={p.workEnd}
-                        onChange={(e) => change("workEnd", e.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <p className="muted small-copy">
-                    Saarthi uses your timezone, meeting length and working
-                    preferences when suggesting a schedule.
-                  </p>
-                  <label>
-                    Display density
-                    <select
-                      value={p.density}
-                      onChange={(e) => change("density", e.target.value)}
-                    >
-                      <option value="comfortable">
-                        Comfortable · room to breathe
-                      </option>
-                      <option value="compact">Compact · more in view</option>
-                    </select>
-                  </label>
-                </div>
+                </section>
               )}
-            </div>
-            {section === "appearance" && (
-              <section className="panel appearance">
-                <div className="section-head">
-                  <div>
-                    <h2>
-                      <Palette size={18} />
-                      Workspace theme
-                    </h2>
-                    <p className="muted small-copy">
-                      Choose the colours you work best in.
-                    </p>
-                  </div>
-                </div>
-                <div className="theme-grid">
-                  {themes.map((t) => (
-                    <button
-                      type="button"
-                      key={t.id}
-                      className={`theme-option ${p.theme === t.id ? "chosen" : ""}`}
-                      onClick={() => change("theme", t.id)}
-                      aria-pressed={p.theme === t.id}
-                    >
-                      <span className={`theme-preview ${t.id}`}>
-                        <i />
-                        <i />
-                        <b />
-                        <em />
-                      </span>
-                      <span className="section-head">
-                        <strong>{t.name}</strong>
-                        {p.theme === t.id && <Check size={16} />}
-                      </span>
-                      <small>{t.detail}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-            <div className="save-bar">
-              <p className="muted">Preferences are saved to your account.</p>
-              <button className="primary" disabled={busy || saving}>
-                {saving ? "Saving…" : "Save changes"}
-                <Check size={16} />
-              </button>
-            </div>
-          </form>
+              <div className="save-bar">
+                <p className="muted">Preferences are saved to your account.</p>
+                <button className="primary" disabled={busy || saving}>
+                  {saving ? "Saving…" : "Save changes"}
+                  <Check size={16} />
+                </button>
+              </div>
+            </form>
+          )}
         </div>
         <aside
           className="profile-connections"
           aria-label="Connections and account"
         >
+          <div className="connections-heading">
+            <Link2 size={15} />
+            <span>Connected services</span>
+          </div>
           <section className="connection-card" id="calendar-connection">
             <div className="connection-card-title">
               <span className="integration-icon">
@@ -515,30 +580,43 @@ export function Profile({
               </p>
             )}
             <div className="connection-actions">
-              <button
-                className="secondary"
-                disabled={busy || user.calendarConfigured === false}
-                onClick={user.calendarConnected ? disconnect : connect}
-              >
-                <Link2 size={14} />
-                {user.calendarConnected
-                  ? "Disconnect"
-                  : "Connect Google Calendar"}
-              </button>
-              {user.calendarConnected && (
+              {user.calendarConnected ? (
                 <>
-                  <button className="text-button" onClick={openCalendar}>
+                  <button
+                    className="secondary connection-primary"
+                    onClick={openCalendar}
+                  >
                     Open calendar <ArrowUpRight size={14} />
                   </button>
                   <button
-                    className="text-button"
+                    className="secondary"
                     disabled={checking || busy}
                     onClick={checkConnection}
                   >
-                    <RefreshCw size={13} />
-                    {checking ? "Checking..." : "Check connection"}
+                    <RefreshCw
+                      size={14}
+                      className={checking ? "checking-icon" : ""}
+                    />
+                    {checking ? "Checking…" : "Check connection"}
+                  </button>
+                  <button
+                    className="text-button connection-disconnect"
+                    disabled={busy}
+                    onClick={disconnect}
+                  >
+                    <Link2 size={13} />
+                    Disconnect calendar
                   </button>
                 </>
+              ) : (
+                <button
+                  className="primary"
+                  disabled={busy || user.calendarConfigured === false}
+                  onClick={connect}
+                >
+                  <Link2 size={14} />
+                  Connect Google Calendar
+                </button>
               )}
             </div>
             {connectionFeedback && (
@@ -588,21 +666,45 @@ export function Profile({
                 </span>
               </div>
             </div>
+            <div className="storage-summary">
+              <strong>{storageLabel}</strong>
+              <span>of 500 MB document storage</span>
+            </div>
+            <div
+              className="storage-meter"
+              role="meter"
+              aria-label="Document storage used in megabytes"
+              aria-valuemin={0}
+              aria-valuemax={500}
+              aria-valuenow={Math.min(usedMB, 500)}
+            >
+              <span style={{ width: `${Math.min(100, usedMB / 5)}%` }} />
+            </div>
             <p>
-              {docs.length} saved file{docs.length === 1 ? "" : "s"} /{" "}
-              {(
-                docs.reduce((sum, d) => sum + (Number(d.size) || 0), 0) /
-                1024 /
-                1024
-              ).toFixed(1)}{" "}
-              MB
+              {docs.length} saved file{docs.length === 1 ? "" : "s"}
             </p>
             <p className="connection-note">
               Notes, conversations and focus history are saved to your account.
             </p>
           </section>
           <section className="connection-card account-session">
-            <p>Sign out of this session. Your workspace stays saved.</p>
+            <div className="session-caption">
+              <ShieldCheck size={17} />
+              <strong>Your account</strong>
+            </div>
+            <p>Manage your password or sign out. Your workspace stays saved.</p>
+            <button
+              className="text-button"
+              onClick={() => {
+                setSection("security");
+                document
+                  .querySelector(".profile-sections")
+                  ?.scrollIntoView({ block: "start", behavior: "instant" });
+              }}
+            >
+              <LockKeyhole size={14} />
+              Change password
+            </button>
             <button className="text-button" disabled={busy} onClick={logout}>
               <LogOut size={14} /> Sign out
             </button>
