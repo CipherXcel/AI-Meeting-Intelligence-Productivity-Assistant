@@ -379,7 +379,13 @@ export default function Home() {
               onClick={() => w.navigate(name)}
             >
               <Icon size={18} />
-              <span>{name}</span>
+              <span>
+                {name === "Notes & files"
+                  ? "Notes"
+                  : name === "All proposals"
+                    ? "Proposals"
+                    : name}
+              </span>
               {name === "All proposals" && pending.length > 0 && <i />}
             </button>
           ))}
