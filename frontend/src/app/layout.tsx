@@ -17,9 +17,12 @@ export const metadata: Metadata = {
   },
   authors: [{ name: "Priyanshu Raj" }],
   creator: "Priyanshu Raj",
-  verification: process.env.GOOGLE_SITE_VERIFICATION
-    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
-    : undefined,
+  verification: {
+    // Public site-ownership token; keep it available across deployments.
+    google:
+      process.env.GOOGLE_SITE_VERIFICATION ||
+      "EsvA6T8P_NVNVuWPkGKpv9hTbHk-g_lH-GIQ2oojKw4",
+  },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
