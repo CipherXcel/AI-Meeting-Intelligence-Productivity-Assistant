@@ -10,6 +10,7 @@ import {
   Timer,
 } from "lucide-react";
 import { HomeSession } from "../components/home-session";
+import { publicGuides } from "../lib/public-guides";
 import "./landing.css";
 
 const title = "AgentBuddy — AI Calendar, Notes & Focus Assistant";
@@ -333,6 +334,31 @@ export default function Home() {
                 so you can sign in from another device.
               </p>
             </details>
+          </div>
+        </section>
+        <section
+          className="landing-section"
+          aria-labelledby="guide-links-heading"
+        >
+          <div className="landing-section-heading">
+            <span className="landing-eyebrow">A CLOSER LOOK</span>
+            <h2 id="guide-links-heading">Get more from your workspace.</h2>
+          </div>
+          <div className="landing-feature-grid">
+            {publicGuides.map((guide) => (
+              <a
+                className="landing-feature"
+                href={`/${guide.slug}/`}
+                key={guide.slug}
+              >
+                <ArrowUpRight size={22} />
+                <span className="landing-mini-label">
+                  {guide.label.toUpperCase()}
+                </span>
+                <h3>{guide.title}</h3>
+                <p>{guide.description}</p>
+              </a>
+            ))}
           </div>
         </section>
         <section className="landing-closing">
