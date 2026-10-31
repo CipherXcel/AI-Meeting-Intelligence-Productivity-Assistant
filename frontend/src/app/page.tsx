@@ -1,642 +1,363 @@
-"use client";
+import type { Metadata } from "next";
 import {
-  Sparkle,
-  LayoutDashboard,
-  ListTodo,
-  FileText,
-  CalendarDays,
-  ShieldCheck,
-  Plus,
-  Search,
-  ArrowUp,
   ArrowUpRight,
-  ArrowRight,
-  PanelLeftClose,
-  PanelLeftOpen,
-  MessageSquare,
-  Pencil,
-  Trash2,
-  X,
+  CalendarDays,
   Check,
-  ChevronRight,
-  ChevronDown,
-  Square,
-  RefreshCw,
-  LockKeyhole,
+  FileText,
+  ListTodo,
+  ShieldCheck,
+  Sparkles,
+  Timer,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { useWorkspace } from "../lib/use-workspace";
-import { type Row } from "../lib/workspace";
-import { AmbientGlow } from "../components/ambient-glow";
-import { Brand } from "../components/ui";
-import { Proposals } from "../components/proposals";
-import { WorkspaceViews } from "../components/workspace-views";
-import { FocusIndicator } from "../components/focus";
-import { ProfileMenu } from "../components/profile-menu";
-import { WorkspaceDialogs } from "../components/workspace-dialogs";
-const navigation = [
-  { name: "Saarthi", icon: Sparkle },
-  { name: "Overview", icon: LayoutDashboard },
-  { name: "Tasks", icon: ListTodo },
-  { name: "Notes & files", icon: FileText },
-  { name: "Calendar", icon: CalendarDays },
-  { name: "All proposals", icon: ShieldCheck },
-] as const;
+import { HomeSession } from "../components/home-session";
+import "./landing.css";
+
+const title = "AgentBuddy — AI Calendar, Notes & Focus Assistant";
+const description =
+  "Plan your day with AgentBuddy and Saarthi. Search saved notes, manage tasks, track focus sessions, and approve Google Calendar changes in one workspace.";
+
+export const metadata: Metadata = {
+  title: { absolute: title },
+  description,
+  alternates: { canonical: "https://cipherxcel.dev/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+  openGraph: {
+    type: "website",
+    url: "https://cipherxcel.dev/",
+    siteName: "AgentBuddy",
+    title,
+    description,
+    locale: "en_US",
+    images: [
+      {
+        url: "/images/agentbuddy-social.png",
+        width: 1200,
+        height: 630,
+        alt: "AgentBuddy — your AI workspace for notes, calendar, tasks, and focus",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: ["/images/agentbuddy-social.png"],
+  },
+};
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://cipherxcel.dev/#website",
+      name: "AgentBuddy",
+      url: "https://cipherxcel.dev/",
+      inLanguage: "en",
+      description,
+      creator: { "@id": "https://cipherxcel.dev/#creator" },
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://cipherxcel.dev/#app",
+      name: "AgentBuddy",
+      url: "https://cipherxcel.dev/",
+      applicationCategory: "ProductivityApplication",
+      operatingSystem: "Web browser",
+      description,
+      image: "https://cipherxcel.dev/images/agentbuddy-social.png",
+      creator: { "@id": "https://cipherxcel.dev/#creator" },
+      featureList: [
+        "AI assistant with saved conversations",
+        "Google Calendar integration",
+        "Notes search",
+        "Task management",
+        "Focus-session tracking",
+      ],
+    },
+    {
+      "@type": "Person",
+      "@id": "https://cipherxcel.dev/#creator",
+      name: "Priyanshu Raj",
+    },
+  ],
+};
+
+const features = [
+  {
+    icon: Sparkles,
+    label: "SAARTHI",
+    title: "A conversation that keeps context.",
+    text: "Pick up where you left off. Saarthi uses saved conversations and summaries of older messages to help you plan your next steps.",
+  },
+  {
+    icon: CalendarDays,
+    label: "CALENDAR",
+    title: "Find time. Make a plan.",
+    text: "Connect Google Calendar, check your availability, and ask for a meeting, reschedule, or cancellation. Review the proposal before it happens.",
+  },
+  {
+    icon: FileText,
+    label: "NOTES",
+    title: "Put your saved notes to work.",
+    text: "Upload documents and ask questions about them. Saarthi can search titles and extracted text, read relevant notes, and link to its sources.",
+  },
+  {
+    icon: ListTodo,
+    label: "TASKS",
+    title: "Keep the details with the task.",
+    text: "Add descriptions, due dates, and linked notes. Open any task to see its context, then mark it complete when the work is done.",
+  },
+  {
+    icon: Timer,
+    label: "FOCUS",
+    title: "Make room for focused work.",
+    text: "Set a time goal or work without a countdown. Come back to finish your session and review your progress, including any extra time.",
+  },
+  {
+    icon: ShieldCheck,
+    label: "YOUR WORKSPACE",
+    title: "You decide what happens next.",
+    text: "Approve assistant proposals yourself. Manage your Google connection, working hours, timezone, appearance, and password from your profile.",
+  },
+];
+
 export default function Home() {
-  const w = useWorkspace();
-  const {
-    status,
-    user,
-    view,
-    threads,
-    thread,
-    messages,
-    proposals,
-    pending,
-    busy,
-    chatBusy,
-    threadLoading,
-    progress,
-    input,
-    toast,
-    signup,
-  } = w;
-  const showQueue = w.queue && !!thread;
-  const actionPanel = useRef<HTMLElement>(null),
-    actionToggle = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const textarea = w.composer.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }, [input, view, status]);
-  useEffect(() => {
-    if (!showQueue) return;
-    const outside = (e: PointerEvent) => {
-      if (
-        !actionPanel.current?.contains(e.target as Node) &&
-        !actionToggle.current?.contains(e.target as Node)
-      )
-        w.setQueue(false);
-    };
-    const keyboard = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        w.setQueue(false);
-        actionToggle.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", keyboard);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", keyboard);
-    };
-  }, [showQueue]);
-  const notification = toast && (
-    <div className="toast" role="status">
-      {toast}
-      <button aria-label="Dismiss notification" onClick={() => w.setToast("")}>
-        <X size={16} />
-      </button>
-    </div>
-  );
-  if (status === "loading")
-    return (
-      <div className="boot">
-        <Brand />
-        <span className="loader" />
-        <p>Opening your private workspace…</p>
-      </div>
-    );
-  if (status === "out" || !user)
-    return (
-      <main className="auth-page auth-glass-page">
-        <AmbientGlow enabled sparkle />
-        <section className="auth-form-wrap">
-          <div className="auth-form">
-            <div className="auth-brand">
-              <Brand />
-              <span>Your daily workspace.</span>
-            </div>
-            <span className="pill">
-              <LockKeyhole size={13} /> Your own space
+  return (
+    <div className="landing">
+      <HomeSession />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <a href="#main" className="landing-skip">
+        Skip to content
+      </a>
+      <header className="landing-header">
+        <a href="/" className="landing-brand" aria-label="AgentBuddy home">
+          <img src="/icon.svg" alt="" width="34" height="34" /> AgentBuddy
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="/workspace/" className="landing-button landing-button-small">
+            Sign in <ArrowUpRight size={16} />
+          </a>
+        </nav>
+      </header>
+      <main id="main">
+        <section className="landing-hero" aria-labelledby="hero-heading">
+          <div className="landing-hero-copy">
+            <span className="landing-eyebrow">
+              <span /> YOUR DAY, A LITTLE MORE ORGANIZED
             </span>
-            <h2>{signup ? "Create an account" : "Sign in"}</h2>
+            <h1 id="hero-heading">
+              Your notes.
+              <br />
+              Your next steps.
+              <br />
+              <em>One AI workspace.</em>
+            </h1>
             <p>
-              {signup
-                ? "Create an account to start your workspace."
-                : "Sign in to your AgentBuddy workspace."}
+              Meet AgentBuddy. Plan with Saarthi, keep your calendar in view,
+              and turn scattered notes into work you can follow through on.
             </p>
-            {w.bootError && (
-              <div className="error-box">
-                {w.bootError}
-                <button onClick={w.boot} className="text-button">
-                  <RefreshCw size={14} />
-                  Retry connection
-                </button>
-              </div>
-            )}
-            <form onSubmit={w.login}>
-              {signup && (
-                <label>
-                  Your name
-                  <input
-                    name="name"
-                    autoComplete="name"
-                    required
-                    maxLength={80}
-                    placeholder="How should we call you?"
-                  />
-                </label>
-              )}
-              <label>
-                Email address
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  required
-                  placeholder="you@example.com"
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  name="password"
-                  autoComplete={signup ? "new-password" : "current-password"}
-                  minLength={10}
-                  maxLength={128}
-                  required
-                  placeholder={
-                    signup ? "At least 10 characters" : "Enter your password"
-                  }
-                />
-              </label>
-              <button className="primary auth-submit" disabled={busy}>
-                {busy
-                  ? "Signing in..."
-                  : signup
-                    ? "Create account"
-                    : "Sign in to AgentBuddy"}
-                <ArrowRight size={18} />
-              </button>
-            </form>
-            <p className="auth-toggle">
-              {signup ? "Already have an account?" : "New around here?"}{" "}
-              <button onClick={() => w.setSignup(!signup)}>
-                {signup ? "Sign in" : "Create an account"}
-              </button>
-            </p>
-            <div className="auth-footnote">
-              <ShieldCheck size={17} />
-              Calendar changes always wait for your approval.
+            <div className="landing-hero-actions">
+              <a href="/workspace/" className="landing-button">
+                Open your workspace <ArrowUpRight size={19} />
+              </a>
+              <a href="#features" className="landing-text-link">
+                Take a look around <span aria-hidden="true">↓</span>
+              </a>
             </div>
+            <div className="landing-reassurance">
+              <ShieldCheck size={16} /> Calendar changes always wait for your
+              approval.
+            </div>
+          </div>
+          <div
+            className="landing-preview"
+            aria-label="Illustrative example of planning with Saarthi"
+          >
+            <div className="landing-preview-top">
+              <span>
+                <Sparkles size={18} /> Saarthi
+              </span>
+              <span className="landing-example">EXAMPLE WORKSPACE</span>
+            </div>
+            <div className="landing-preview-chat">
+              Find time for a project review and help me prepare from my notes.
+            </div>
+            <div className="landing-preview-reply">
+              <span className="landing-mini-label">A PLAN TO REVIEW</span>
+              <h2>A little clarity for your day.</h2>
+              <p>Bring the meeting, its notes, and your next steps together.</p>
+            </div>
+            <div className="landing-example-event">
+              <span className="landing-calendar-icon">
+                <CalendarDays size={24} />
+              </span>
+              <div>
+                <strong>Project review</strong>
+                <span>Google Calendar · proposal</span>
+              </div>
+              <span className="landing-pending">Review</span>
+            </div>
+            <div className="landing-preview-bottom">
+              <div>
+                <FileText size={18} />
+                <strong>Meeting notes</strong>
+                <span>Context, close at hand</span>
+              </div>
+              <div>
+                <Timer size={18} />
+                <strong>Space to focus</strong>
+                <span>One thing at a time</span>
+              </div>
+            </div>
+            <span className="landing-preview-orbit" aria-hidden="true" />
           </div>
         </section>
-        {notification}
-      </main>
-    );
-  const visibleThreads = threads.filter((t) =>
-    t.title.toLowerCase().includes(w.historySearch.toLowerCase()),
-  );
-  const groupName = (t: Row) => {
-    const today = new Date().toLocaleDateString("en-CA", {
-      timeZone: user.timezone,
-    });
-    const date = new Date(t.updated_at || t.created_at).toLocaleDateString(
-      "en-CA",
-      { timeZone: user.timezone },
-    );
-    return date === today
-      ? "Today"
-      : Date.now() - new Date(t.updated_at || t.created_at).getTime() <
-          7 * 86400000
-        ? "Previous 7 days"
-        : "Earlier";
-  };
-  const currentTitle = threads.find((t) => t.id === thread)?.title || "Saarthi";
-  return (
-    <div
-      className={`shell ${view === "Saarthi" ? "assistant-view" : "full-workspace"} ${w.collapsed ? "history-collapsed" : ""}`}
-    >
-      <AmbientGlow enabled />
-      {view === "Saarthi" && w.sidebar && (
-        <button
-          className="sidebar-backdrop"
-          aria-label="Close conversations"
-          onClick={() => w.setSidebar(false)}
-        />
-      )}
-      {view === "Saarthi" && (
-        <aside className={`history-sidebar ${w.sidebar ? "mobile-open" : ""}`}>
-          <div className="sidebar-brand">
-            <Brand />
-            <button
-              className="icon-button"
-              aria-label="Close conversation panel"
-              onClick={() => {
-                w.setCollapsed(true);
-                w.setSidebar(false);
-              }}
-            >
-              <PanelLeftClose size={18} />
-            </button>
+        <section id="features" className="landing-section">
+          <div className="landing-section-heading">
+            <span className="landing-eyebrow">LESS SWITCHING. MORE DOING.</span>
+            <h2>A place for the whole day.</h2>
+            <p>
+              From the first idea to the final checkmark, keep the work
+              connected.
+            </p>
           </div>
-          <p className="workspace-label">YOUR CONVERSATIONS</p>
-          <button className="new-chat" disabled={chatBusy} onClick={w.newChat}>
-            <Plus size={17} />
-            New chat<span>↗</span>
-          </button>
-          <label className="search-field">
-            <Search size={15} />
-            <input
-              aria-label="Search conversations"
-              placeholder="Find a conversation"
-              value={w.historySearch}
-              onChange={(e) => w.setHistorySearch(e.target.value)}
-            />
-          </label>
-          <div className="history-list">
-            {visibleThreads.map((t, i) => (
-              <div key={t.id}>
-                {(i === 0 ||
-                  groupName(t) !== groupName(visibleThreads[i - 1])) && (
-                  <p className="history-group">{groupName(t)}</p>
-                )}
-                <div
-                  className={`history-row ${thread === t.id ? "active" : ""}`}
-                >
-                  <button
-                    disabled={chatBusy}
-                    className="history-link"
-                    onClick={() => w.openThread(t.id)}
-                  >
-                    <MessageSquare size={15} />
-                    <span>{t.title}</span>
-                  </button>
-                  <div className="history-actions">
-                    <button
-                      disabled={chatBusy}
-                      aria-label={`Rename ${t.title}`}
-                      onClick={() => {
-                        w.setSelected(t);
-                        w.setModal("rename");
-                      }}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      disabled={chatBusy}
-                      aria-label={`Delete ${t.title}`}
-                      onClick={() => w.remove("threads", t)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+          <div className="landing-feature-grid">
+            {features.map(({ icon: Icon, label, title: heading, text }) => (
+              <article className="landing-feature" key={label}>
+                <Icon size={22} aria-hidden="true" />
+                <span className="landing-mini-label">{label}</span>
+                <h3>{heading}</h3>
+                <p>{text}</p>
+              </article>
             ))}
-            {!visibleThreads.length && (
-              <p className="history-empty">
-                {w.historySearch
-                  ? "No conversations match."
-                  : "Your conversations will find a home here."}
+          </div>
+        </section>
+        <section id="how-it-works" className="landing-section landing-workflow">
+          <div className="landing-section-heading">
+            <span className="landing-eyebrow">
+              START WITH WHAT IS ON YOUR MIND
+            </span>
+            <h2>Ask. Review. Get on with your day.</h2>
+          </div>
+          <ol>
+            <li>
+              <span>01</span>
+              <h3>Bring your context.</h3>
+              <p>
+                Create an account, upload your notes, and connect Google
+                Calendar when you want to plan meetings.
               </p>
-            )}
+            </li>
+            <li>
+              <span>02</span>
+              <h3>Talk to Saarthi.</h3>
+              <p>
+                Ask about a document, check your schedule, or turn a set of
+                meeting notes into proposed action items.
+              </p>
+            </li>
+            <li>
+              <span>03</span>
+              <h3>Choose your next step.</h3>
+              <p>
+                Approve the changes you want, work through your tasks, or start
+                a focus session to make time for one thing.
+              </p>
+            </li>
+          </ol>
+        </section>
+        <section
+          className="landing-section landing-faq"
+          aria-labelledby="faq-heading"
+        >
+          <div className="landing-section-heading">
+            <span className="landing-eyebrow">A FEW THINGS TO KNOW</span>
+            <h2 id="faq-heading">Before you get started.</h2>
           </div>
-          <div className="sidebar-connection">
-            <div className="sidebar-connection-identity">
-              <span
-                className={`sidebar-calendar-icon ${user.calendarConnected ? "connected" : ""}`}
-              >
-                <CalendarDays size={18} />
-              </span>
-              <span
-                className={`status-light ${user.calendarConnected ? "connected" : user.calendarConfigured === false ? "setup" : "disconnected"}`}
-              />
-              <span>
-                Google Calendar
-                <small>
-                  {user.calendarConnected
-                    ? "Connected"
-                    : user.calendarConfigured === false
-                      ? "Setup needed"
-                      : "Not connected"}
-                </small>
-              </span>
-            </div>
-            <button
-              className="text-button"
-              aria-label="Inspect Google Calendar connection"
-              onClick={() => {
-                w.navigate("Profile");
-                requestAnimationFrame(() =>
-                  document
-                    .getElementById("calendar-connection")
-                    ?.scrollIntoView({ block: "center", behavior: "instant" }),
-                );
-              }}
-            >
-              Inspect <ArrowUpRight size={12} />
-            </button>
+          <div>
+            <details>
+              <summary>What is AgentBuddy?</summary>
+              <p>
+                AgentBuddy is a web-based AI productivity assistant created by
+                Priyanshu Raj. It brings conversations with Saarthi, Google
+                Calendar planning, saved notes, tasks, and focus-session
+                tracking into one personal workspace.
+              </p>
+            </details>
+            <details>
+              <summary>Will Saarthi change my calendar automatically?</summary>
+              <p>
+                No. Saarthi prepares proposals for you to review. Creating,
+                moving, or cancelling a meeting requires your approval.
+                Availability checks use your connected primary Google calendar,
+                not other attendees’ calendars.
+              </p>
+            </details>
+            <details>
+              <summary>Which documents can I use?</summary>
+              <p>
+                You can upload text-based PDF, TXT, Markdown, SRT, and VTT
+                files. Notes search uses titles and extracted text. Scanned PDFs
+                need text recognition before upload. The limit is 10 MB per file
+                and 500 MB per account.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Does focus mode add an event to Google Calendar?
+              </summary>
+              <p>
+                Focus sessions are recorded in AgentBuddy’s own calendar
+                history. They do not automatically block Google Calendar. You
+                can set a duration or choose open focus, and extra time is
+                recorded until you finish the session.
+              </p>
+            </details>
+            <details>
+              <summary>Can I use it on my phone?</summary>
+              <p>
+                Yes. AgentBuddy works in your browser with a mobile layout and
+                bottom navigation. Your saved workspace is tied to your account,
+                so you can sign in from another device.
+              </p>
+            </details>
           </div>
-        </aside>
-      )}
-      <div className="workspace-main">
-        <ProfileMenu w={w} />
-        <FocusIndicator w={w} />
-        {view !== "Saarthi" && (
-          <button
-            className="workspace-brand"
-            onClick={() => w.navigate("Saarthi")}
-            aria-label="AgentBuddy home"
-          >
-            <Brand />
-          </button>
-        )}
-        {view === "Saarthi" && (
-          <button
-            className="icon-button history-toggle"
-            aria-label="Open conversations"
-            onClick={() => {
-              w.setCollapsed(false);
-              w.setSidebar(true);
-            }}
-          >
-            <PanelLeftOpen size={18} />
-          </button>
-        )}
-        <nav className="floating-dock" aria-label="Workspace navigation">
-          {navigation.map(({ name, icon: Icon }) => (
-            <button
-              key={name}
-              aria-label={name}
-              aria-current={view === name ? "page" : undefined}
-              className={`${view === name ? "active" : ""} ${name === "Saarthi" ? "dock-assistant" : ""}`}
-              onClick={() => w.navigate(name)}
-            >
-              <Icon size={18} />
-              <span>
-                {name === "Notes & files"
-                  ? "Notes"
-                  : name === "All proposals"
-                    ? "Proposals"
-                    : name}
-              </span>
-              {name === "All proposals" && pending.length > 0 && <i />}
-            </button>
-          ))}
-        </nav>
-        {view === "Saarthi" ? (
-          <div className="chat-layout queue-hidden">
-            <section className="chat-main">
-              <div className="chat-heading">
-                <div className="inline">
-                  <span className="chat-symbol">
-                    <Sparkle size={18} />
-                  </span>
-                  <div>
-                    <h2>{currentTitle}</h2>
-                    <small>
-                      {thread
-                        ? "Saved conversation"
-                        : "Your workspace assistant"}
-                    </small>
-                  </div>
-                </div>
-                {thread && (
-                  <button
-                    className={`queue-toggle ${w.queue ? "active" : ""}`}
-                    ref={actionToggle}
-                    aria-label="Conversation actions"
-                    aria-controls="conversation-actions"
-                    aria-expanded={w.queue}
-                    onClick={() => w.setQueue(!w.queue)}
-                  >
-                    <ShieldCheck size={17} />
-                    <span>Actions</span>
-                    <b>
-                      {
-                        proposals.filter(
-                          (p) =>
-                            p.thread_id === thread && p.status === "pending",
-                        ).length
-                      }
-                    </b>
-                    <ChevronDown size={13} className="actions-chevron" />
-                  </button>
-                )}
-              </div>
-              {showQueue && (
-                <aside
-                  ref={actionPanel}
-                  id="conversation-actions"
-                  className="conversation-actions"
-                  aria-label="Conversation actions"
-                >
-                  <Proposals
-                    key={thread}
-                    items={proposals.filter((p) => p.thread_id === thread)}
-                    user={user}
-                    busy={busy}
-                    act={w.proposalAction}
-                    compact
-                  />
-                  <button
-                    className="text-button"
-                    onClick={() => w.navigate("All proposals")}
-                  >
-                    All proposals <ArrowUpRight size={13} />
-                  </button>
-                </aside>
-              )}
-              <div className="messages">
-                {threadLoading ? (
-                  <div className="empty">
-                    <span className="loader" />
-                    <p>Opening conversation…</p>
-                  </div>
-                ) : !messages.length ? (
-                  <div className="chat-welcome">
-                    <span className="welcome-mark">
-                      <Sparkle size={38} strokeWidth={1} fill="currentColor" />
-                    </span>
-                    <span className="eyebrow">SAARTHI · YOUR AI ASSISTANT</span>
-                    <h1>
-                      How can I help,
-                      <br />
-                      <em>{user.name.split(" ")[0]}?</em>
-                    </h1>
-                    <p>
-                      Plan meetings, work with your notes, and keep track of
-                      next steps.
-                    </p>
-                    <div className="suggestions">
-                      {[
-                        {
-                          icon: CalendarDays,
-                          title: "Plan a meeting",
-                          text: "Help me find a free slot for a meeting during my working hours.",
-                        },
-                        {
-                          icon: FileText,
-                          title: "Explore my notes",
-                          text: "Help me find decisions and action items in my saved notes.",
-                        },
-                        {
-                          icon: ListTodo,
-                          title: "Review my tasks",
-                          text: "Show my pending tasks and help me decide what to work on next.",
-                        },
-                        {
-                          icon: MessageSquare,
-                          title: "Prepare an agenda",
-                          text: "Help me prepare an agenda for my next meeting.",
-                        },
-                      ].map((s) => (
-                        <button
-                          key={s.title}
-                          disabled={chatBusy}
-                          onClick={() => {
-                            w.setInput(s.text);
-                            w.composer.current?.focus();
-                          }}
-                        >
-                          <s.icon size={18} />
-                          <span>{s.title}</span>
-                          <ArrowUpRight size={15} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((m, i) => (
-                    <article className={`message ${m.role}`} key={m.id || i}>
-                      <div className="message-content">
-                        <span className="message-author">
-                          {m.role === "user" ? "You" : "Saarthi"}
-                        </span>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ href, children }) =>
-                              href?.startsWith("#note-") ? (
-                                <button
-                                  className="text-button"
-                                  onClick={() =>
-                                    w.readDoc({ id: href.slice(6) })
-                                  }
-                                >
-                                  {children}
-                                </button>
-                              ) : (
-                                <a href={href} target="_blank" rel="noreferrer">
-                                  {children}
-                                </a>
-                              ),
-                          }}
-                        >
-                          {m.content}
-                        </ReactMarkdown>
-                      </div>
-                    </article>
-                  ))
-                )}
-                {chatBusy && (
-                  <div className="thinking" role="status">
-                    <span className="loader" />
-                    {progress}
-                  </div>
-                )}
-                <div ref={w.bottom} />
-              </div>
-              <div className="composer-wrap">
-                <form
-                  className="composer"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void w.send();
-                  }}
-                >
-                  <textarea
-                    ref={w.composer}
-                    aria-label="Message Saarthi"
-                    placeholder="Ask, plan, or untangle a thought…"
-                    value={input}
-                    maxLength={5000}
-                    rows={2}
-                    disabled={threadLoading}
-                    onChange={(e) => w.setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        !e.nativeEvent.isComposing
-                      ) {
-                        e.preventDefault();
-                        void w.send();
-                      }
-                    }}
-                  />
-                  <div className="composer-tools">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label="Upload a note"
-                      disabled={busy || chatBusy}
-                      onClick={() => w.upload.current?.click()}
-                    >
-                      <Plus size={20} />
-                    </button>
-                    <span>
-                      <Sparkle size={13} />
-                      Saarthi
-                    </span>
-                    {input.length > 4500 && <small>{input.length}/5000</small>}
-                    {chatBusy ? (
-                      <button
-                        type="button"
-                        className="send-button"
-                        aria-label="Stop response"
-                        onClick={() => w.abort.current?.abort()}
-                      >
-                        <Square size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        className="send-button"
-                        aria-label="Send message"
-                        disabled={!input.trim() || threadLoading}
-                      >
-                        <ArrowUp size={20} />
-                      </button>
-                    )}
-                  </div>
-                </form>
-                <p className="composer-caption">
-                  <ShieldCheck size={12} />
-                  You’re in control. Calendar changes need your approval.
-                  <span>↵ send · shift ↵ new line</span>
-                </p>
-              </div>
-            </section>
+        </section>
+        <section className="landing-closing">
+          <div>
+            <Check size={20} />
+            <h2>A clear place to start.</h2>
+            <p>Bring your next task, thought, or meeting.</p>
           </div>
-        ) : (
-          <WorkspaceViews w={w} />
-        )}
-      </div>
-      <input
-        ref={w.upload}
-        hidden
-        type="file"
-        accept=".pdf,.txt,.md,.srt,.vtt"
-        onChange={(e) => w.uploadFile(e.target.files?.[0])}
-      />
-      {notification}
-      <WorkspaceDialogs w={w} />
+          <a href="/workspace/" className="landing-button">
+            Get started <ArrowUpRight size={18} />
+          </a>
+        </section>
+      </main>
+      <footer className="landing-footer">
+        <a href="/" className="landing-brand">
+          <img src="/icon.svg" alt="" width="26" height="26" />
+          AgentBuddy
+        </a>
+        <span>
+          Created by <strong>Priyanshu Raj</strong>
+        </span>
+        <a href="https://github.com/CipherXcel/AI-Meeting-Intelligence-Productivity-Assistant">
+          View on GitHub <ArrowUpRight size={14} />
+        </a>
+      </footer>
     </div>
   );
 }

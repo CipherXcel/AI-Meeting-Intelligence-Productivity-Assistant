@@ -26,6 +26,7 @@ app.use(express.json({ limit: "600kb" }));
 app.use(cookieParser());
 app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
   if (
     !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
     req.headers.origin &&
@@ -370,12 +371,23 @@ app.use("/api", api);
 app.use("/api", (_req, res) =>
   res.status(404).json({ error: "Endpoint not found" }),
 );
+app.use("/workspace", (_req, res, next) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  next();
+});
 app.use(
   express.static(
     path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
       "../../frontend/out",
     ),
+    {
+      setHeaders(res, filePath) {
+        // Next's fingerprinted bundles can be reused safely across visits.
+        if (filePath.includes(path.join("_next", "static") + path.sep))
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    },
   ),
 );
 app.use(
