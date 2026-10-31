@@ -1,67 +1,146 @@
 # AgentBuddy
 
-An AI productivity workspace for conversations, calendar planning, notes, tasks, and focused work. **Saarthi**, the built-in assistant, helps you find information and plan your next steps using your saved workspace context.
+**Your notes, schedule, and next steps in one place.**
 
-**[Open AgentBuddy](https://cipherxcel.dev)** · [Source code](https://github.com/CipherXcel/AI-Meeting-Intelligence-Productivity-Assistant)
+AgentBuddy brings chat, Google Calendar, tasks, and focus sessions into a single workspace. Its assistant, **Saarthi**, can look through your saved notes, check your schedule, and suggest actions. You review those actions before anything changes on your calendar.
 
-## Features
+**[Try the live app → cipherxcel.dev](https://cipherxcel.dev)**
 
-### Saarthi assistant
-- Persistent conversations with searchable chat history and summaries of older messages.
-- Gemini-powered replies streamed to the interface through server-sent events.
-- MCP tools for calendar availability, saved-note retrieval, and meeting or task proposals.
-- Browse saved notes, search their titles and content, and read relevant documents with source links.
-- Review pending actions and proposal history within each conversation. Calendar changes and extracted tasks require your approval.
+## A look inside
 
-### Calendar and overview
-- Connect Google Calendar through OAuth, inspect connection status, and disconnect from settings.
-- Read your primary calendar, find available time, and approve meeting creation with Google Meet links.
-- Switch between month and week views, select a day, and inspect its events, tasks, and focus activity.
-- See upcoming meetings, pending work, approvals, and a compact focus report from the overview.
+### Saarthi and conversation actions
 
-### Notes and tasks
-- Upload text-based PDF, TXT, Markdown, SRT, and VTT documents for extraction and retrieval.
-- Open task details to edit descriptions, due dates, completion status, and linked notes.
-- Preview linked notes while working on a task.
-- Track document storage usage with a 500 MB per-account quota.
+Chat history stays on the left. Meeting and task proposals sit alongside the conversation, where you can review them before approving.
 
-### Focus sessions
-- Choose a preset or custom duration, or enable open focus without a countdown.
-- Keep a session active while navigating the workspace and return to finish it.
-- Get a completion notice when the target is reached; continue working to record extra time.
-- Review session timing and history, record focus activity in the workspace calendar, and optionally create a completed task.
+![Saarthi workspace with conversation history, Calendar connection status, and the actions dropdown](assets/screenshots/saarthi.jpg)
 
-Focus records are stored in AgentBuddy; starting a session does not automatically block time in Google Calendar.
+### Focus history
 
-### Profile, appearance, and security
-- Configure personal details, timezone, meeting duration, working days, and working hours.
-- Choose White, Dark, Glass, Frost, Bloom, or Sand, with animated glass effects and reduced-motion support.
-- Use a floating navigation dock on desktop and a full-width bottom bar on mobile.
-- Change your password using your current password. Other sessions are signed out while your current session is renewed.
-- Account protection includes Argon2 password hashing, short-lived JWT access tokens, rotating refresh tokens, encrypted Google OAuth tokens, rate limiting, and per-user data access checks.
+Start a timed session or work without a countdown. When you finish, you can see the time spent, whether you reached your goal, and any extra time.
 
-## Tech stack
+![Focus history showing session times, goals, and extra time](assets/screenshots/focus-history.jpg)
 
-| Layer | Technologies |
+*These screenshots were captured during development. The live app includes newer layout refinements.*
+
+## What you can do
+
+- **Ask Saarthi about your work.** Conversations are saved, with summaries of older messages for context. It can browse notes, search their titles and content, and link back to the documents it used.
+- **Plan your calendar.** Connect Google Calendar, check availability, and request a meeting, reschedule, or cancellation. Saarthi creates a proposal first; approved meetings can include Google Meet links.
+- **Keep notes close to tasks.** Upload PDF, TXT, Markdown, SRT, or VTT files. Add task descriptions and due dates, link supporting notes, and open them from the task's detail view.
+- **Track focused work.** Pick a preset or custom duration, or use open focus. Sessions survive navigation, notify you when the goal is reached, and keep recording extra time until you finish.
+- **See the day at a glance.** The overview brings together meetings, pending tasks, approvals, and focus activity. Month and week calendar views let you select a day for more detail.
+- **Set up your workspace.** Choose your timezone, working hours, meeting length, and theme. White, Dark, Glass, Frost, Bloom, and Sand are available, with mobile navigation and reduced-motion support.
+
+Account settings also include password changes using your current password. Changing it signs out other sessions while keeping your current session active.
+
+## How it works
+
+The app has a Next.js frontend and an Express backend. PostgreSQL stores accounts and workspace data. The backend talks to Gemini and exposes the calendar, notes, and task tools through an in-process MCP connection.
+
+```mermaid
+flowchart TD
+    Browser["Browser · React workspace"]
+
+    subgraph EC2["AWS EC2"]
+        Nginx["Nginx · HTTPS"]
+        Static["Next.js static export"]
+        API["Express API · authentication and ownership checks"]
+        Agent["Saarthi · context and tool loop"]
+        MCP["MCP tools · in-process transport"]
+        Review["Proposal approval handler"]
+        DB[("PostgreSQL")]
+        Files["Uploaded files · persistent disk"]
+    end
+
+    Gemini["Google Gemini API"]
+    Calendar["Google Calendar API"]
+    S3["Amazon S3 · optional storage"]
+
+    Browser <-->|HTTPS| Nginx
+    Nginx --> API
+    API -->|serves| Static
+    API -->|chat requests| Agent
+    Agent <-->|model calls| Gemini
+    Agent <-->|tool calls and results| MCP
+    MCP -->|notes, tasks, pending proposals| DB
+    MCP -->|calendar reads| Calendar
+    API -->|explicit user approval| Review
+    Review -->|create, reschedule, cancel| Calendar
+    Review -->|approved tasks and results| DB
+    API <--> DB
+    API --> Files
+    API -.-> S3
+    API -->|SSE progress and reply events| Browser
+```
+
+### A request, from chat to calendar
+
+1. You send a message in a saved conversation. The backend checks your session and loads recent messages, an older conversation summary, and your scheduling preferences.
+2. Gemini decides which tools it needs. Saarthi runs those tools through MCP with your user ID, so note and task lookups stay within your account.
+3. Read requests return information directly. Requests to change meetings or extract tasks create a **pending proposal**.
+4. You review and approve the proposal. The backend checks ownership, validates the request, and checks for calendar conflicts before creating or moving an event.
+5. The result is saved and returned to the workspace.
+
+MCP runs inside the backend; there is no separate MCP service to deploy. Chat uses server-sent events for tool progress and the final reply.
+
+### Data and account security
+
+- PostgreSQL keeps conversations, summaries, notes, tasks, proposals, focus records, and sessions.
+- Document text is extracted for retrieval. Original files use persistent local storage, with S3 available as an option.
+- Passwords are hashed with Argon2. Authentication uses short-lived JWT access tokens and rotating refresh tokens.
+- Google OAuth tokens are encrypted with AES-256-GCM. API routes and tool calls check ownership before accessing user data.
+
+## Built with
+
+| Part | Stack |
 | --- | --- |
-| Frontend | Next.js, React, TypeScript, CSS, Lucide icons |
-| Backend | Node.js, Express, TypeScript, Zod |
-| AI and tools | Google Gemini API, Model Context Protocol (MCP), server-sent events |
+| Interface | Next.js, React, TypeScript, CSS, Lucide |
+| API | Node.js, Express, TypeScript, Zod |
+| Assistant | Gemini API, MCP SDK, server-sent events |
 | Database | PostgreSQL |
-| Integrations | Google Calendar API, Google OAuth, Google Meet links |
-| Storage | Local filesystem; optional Amazon S3 |
-| Deployment | AWS EC2, Nginx, HTTPS, systemd; Docker Compose and Caddy configuration included |
+| Calendar | Google Calendar API and OAuth |
+| Hosting | AWS EC2, Nginx, HTTPS, systemd |
+| Local / alternative deployment | Docker Compose; Caddy for the container deployment |
 
-## Run locally
+## Directory structure
 
-### Requirements
+```text
+.
+├── backend/
+│   ├── src/
+│   │   ├── index.ts             # Startup and database initialization
+│   │   ├── app.ts               # HTTP routes and SSE chat endpoint
+│   │   ├── auth.ts              # Login, refresh, logout, password changes
+│   │   ├── security.ts          # JWT validation and token encryption
+│   │   ├── agent.ts             # Gemini conversation and tool loop
+│   │   ├── tools.ts             # MCP tools and proposal execution
+│   │   ├── calendar.ts          # Google OAuth and Calendar requests
+│   │   ├── notes.ts             # Note browsing and keyword search
+│   │   ├── storage.ts           # Uploads, text extraction, file storage
+│   │   ├── focus.ts             # Focus-session routes
+│   │   ├── db.ts                # Schema, queries, ownership helpers
+│   │   └── migrate.ts           # Standalone schema initialization
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── app/                 # Main page, layout, icons, and styles
+│   │   ├── components/          # Calendar, tasks, focus, profile, proposals
+│   │   └── lib/                 # API client, workspace state, date helpers
+│   └── public/                  # App images and static assets
+├── assets/screenshots/          # Images used in this README
+├── scripts/
+│   ├── dev-local.mjs            # Starts the frontend and backend together
+│   └── stage-frontend.mjs       # Stages the exported frontend
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── Caddyfile
+└── package.json                 # Workspace commands
+```
 
-- Node.js 24 and npm.
-- Docker with Docker Compose for the included PostgreSQL service.
-- A Gemini API key for assistant replies.
-- Google OAuth credentials for Google Calendar features.
+## Run it locally
 
-### Install and configure
+You will need **Node.js 24**, npm, and Docker Compose. Assistant replies need a Gemini API key; the Calendar connection needs Google OAuth credentials.
 
 ```sh
 git clone https://github.com/CipherXcel/AI-Meeting-Intelligence-Productivity-Assistant.git
@@ -69,104 +148,91 @@ cd AI-Meeting-Intelligence-Productivity-Assistant
 npm ci
 ```
 
-Copy `.env.example` to both `.env` and `backend/.env`. On PowerShell:
+Copy `.env.example` to `.env` and `backend/.env`. In PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 Copy-Item .env.example backend/.env
 ```
 
-Configure the following values before starting:
+Fill in your database password, secrets, and provider credentials before starting.
 
-| Variable | Purpose |
+<details>
+<summary>Environment variables</summary>
+
+| Variable | Value / purpose |
 | --- | --- |
-| `POSTGRES_PASSWORD` | Database password used by Docker Compose |
-| `DATABASE_URL` | PostgreSQL connection string; the included local database uses port `5443` |
-| `JWT_SECRET` | Independent random secret of at least 32 characters |
-| `TOKEN_ENCRYPTION_KEY` | Independent 32-byte encryption key, encoded as 64 hexadecimal characters |
-| `GEMINI_API_KEY` | API key for assistant replies |
-| `GEMINI_MODEL` | Gemini model ID; the example uses `gemini-3.1-flash-lite` |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth web application credentials |
-| `APP_URL` | Frontend origin: `http://localhost:3100` locally |
-| `PUBLIC_URL` | Public backend origin: `http://localhost:4000` locally |
-| `UPLOAD_DIR` | Persistent document directory when S3 is not configured |
+| `POSTGRES_PASSWORD` | Password for the Compose database |
+| `DATABASE_URL` | PostgreSQL connection string; local Compose exposes port `5443` |
+| `JWT_SECRET` | Random secret, at least 32 characters |
+| `TOKEN_ENCRYPTION_KEY` | Separate random key: 32 bytes encoded as 64 hex characters |
+| `GEMINI_API_KEY` | Gemini API key |
+| `GEMINI_MODEL` | Model ID; the example uses `gemini-3.1-flash-lite` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth web-client credentials |
+| `APP_URL` | `http://localhost:3100` locally |
+| `PUBLIC_URL` | `http://localhost:4000` locally |
+| `UPLOAD_DIR` | Persistent upload directory when S3 is not configured |
 
-Generate a random secret with this command. Run it separately for each secret:
+Run this once for each secret, using a different result for each:
 
 ```sh
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Set the same database password in the root Compose configuration and backend connection string. Keep credentials in local environment files, outside version control.
+Use the same database password in the root Compose environment and backend connection string. Keep environment files and keys out of Git.
 
-### Start
+</details>
 
 ```sh
 docker compose up -d db
 npm run dev
 ```
 
-Open [http://localhost:3100](http://localhost:3100). The backend runs at [http://localhost:4000](http://localhost:4000) and initializes its database schema on startup.
+Open **[localhost:3100](http://localhost:3100)**. The API runs on port **4000** and initializes its schema on startup. The combined dev command sets the local origins automatically.
 
-The combined development command sets the frontend and backend origins automatically. If running the services separately, set the origins above and configure `frontend/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:4000`.
+If you run the services separately, set the origins listed above and add `NEXT_PUBLIC_API_URL=http://localhost:4000` to `frontend/.env.local`.
 
-Create an account, connect Google Calendar from your profile or Saarthi sidebar, and upload a note to start using your workspace.
+## Connect Google Calendar
 
-## Google Calendar setup
+In your Google Cloud project, enable the Calendar API, configure the consent screen, and create an OAuth client with the **Web application** type.
 
-1. Enable the Google Calendar API in your Google Cloud project.
-2. Configure the OAuth consent screen and create a **Web application** OAuth client.
-3. Add the appropriate **Authorized redirect URIs**:
+Add these **Authorized redirect URIs** for local development and the live app:
 
-   ```text
-   http://localhost:4000/api/calendar/callback
-   https://cipherxcel.dev/api/calendar/callback
-   ```
+```text
+http://localhost:4000/api/calendar/callback
+https://cipherxcel.dev/api/calendar/callback
+```
 
-4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment.
-5. Add your Google account as a test user if the OAuth app is in testing, then connect from AgentBuddy.
+For your own deployment, replace `cipherxcel.dev` with your domain. The URI must match `${PUBLIC_URL}/api/calendar/callback` exactly.
 
-For your own deployment, replace the production domain with your domain. The redirect URI must exactly match `${PUBLIC_URL}/api/calendar/callback`, including the scheme, port, and path.
+Set the client ID and secret in the backend environment, restart the backend, then connect from Profile or the Saarthi sidebar. If your OAuth app is in testing, add your Google account as a test user.
 
-## Production
+## Deployment
 
-The live application is hosted at **[cipherxcel.dev](https://cipherxcel.dev)** on AWS EC2 behind Nginx with HTTPS and automatic service restart through systemd.
-
-To build and run your own deployment:
+The live app runs on **AWS EC2**, behind **Nginx with HTTPS**. A systemd service keeps the Node.js process running.
 
 ```sh
 npm run build
 npm start
 ```
 
-The backend serves the exported frontend and API on port `4000` by default, configurable with `PORT`. Use same-origin API requests in production: leave `NEXT_PUBLIC_API_URL` unset or empty when building.
+The Express server serves both the exported frontend and the API. Its default port is `4000`; change it with `PORT`. Leave `NEXT_PUBLIC_API_URL` unset or empty when building for same-origin production use.
 
-Set `NODE_ENV=production`, `APP_URL`, and `PUBLIC_URL` to match your HTTPS deployment. Provide a persistent PostgreSQL database, independent authentication and encryption secrets, and persistent document storage. Preserve the encryption key across releases so existing Google connections remain readable.
+Set `NODE_ENV=production`, and set `APP_URL` and `PUBLIC_URL` to your HTTPS origin. Keep PostgreSQL data and uploaded files on persistent storage. Preserve `TOKEN_ENCRYPTION_KEY` across releases so saved Google connections remain readable.
 
-For optional S3 storage, configure `AWS_S3_BUCKET`, `AWS_REGION`, and suitable runtime AWS permissions. Otherwise, uploaded documents use `UPLOAD_DIR`.
-
-Alternatively, the included Docker Compose production profile runs the app, PostgreSQL, and Caddy:
+The repository also includes a Docker Compose deployment with Caddy:
 
 ```sh
 docker compose --profile production up -d --build
 ```
 
-Configure the root `.env` for production, including `DOMAIN`, HTTPS origins, database credentials, and secrets. The Compose configuration persists database, upload, and Caddy data in named volumes.
+For that option, configure the root `.env`, including `DOMAIN`, HTTPS origins, database credentials, and secrets. Compose uses named volumes for PostgreSQL, uploads, and Caddy data.
 
-## Project structure
+To use S3 instead of local file storage, set `AWS_S3_BUCKET` and `AWS_REGION`, and give the runtime the required AWS permissions.
 
-```text
-backend/src/       API, authentication, agent tools, calendar, notes, and focus logic
-frontend/src/      Workspace interface, components, themes, and client state
-frontend/public/   Static assets
-scripts/           Local development and frontend staging scripts
-docker-compose.yml Database and optional production services
-Dockerfile         Application image
-Caddyfile          HTTPS reverse proxy for the Compose deployment
-```
+## A few things to know
 
-## Current scope
-
-- Calendar availability checks use the connected user's primary Google calendar; they do not verify other attendees' availability.
-- Notes search uses saved titles and extracted text. Scanned PDFs without selectable text require OCR before upload.
-- Gemini and Google Calendar features require valid provider configuration; the rest of the workspace remains separately usable.
+- Availability checks cover your connected primary calendar, not other attendees' calendars.
+- Focus sessions appear in AgentBuddy's calendar history; starting focus does not create a Google Calendar event.
+- Notes search works on titles and extracted text. Scanned PDFs need OCR before upload.
+- Uploads are limited to 10 MB per file and 500 MB per account.
