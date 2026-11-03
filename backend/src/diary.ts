@@ -423,6 +423,24 @@ diaryRouter.patch("/days/:date/favourite", async (req, res) => {
     db.release();
   }
 });
+diaryRouter.get("/days", async (req, res) => {
+  const entries = await readDiaryForAgent(req);
+  const days = new Map<
+    string,
+    { date: string; title: string; pages: number }
+  >();
+  for (const entry of entries) {
+    const day = days.get(entry.date);
+    if (day) day.pages++;
+    else
+      days.set(entry.date, {
+        date: entry.date,
+        title: entry.title || "Untitled day",
+        pages: 1,
+      });
+  }
+  res.json([...days.values()].sort((a, b) => b.date.localeCompare(a.date)));
+});
 diaryRouter.get("/entries", async (req, res) => {
   const g = await requireGrant(req);
   res.json(await entries(req.userId, g.key));
@@ -557,6 +575,12 @@ export async function readDiaryForAgent(req: Request) {
     );
   return (await entries(req.userId, g.key))
     .filter((e) => !e.trashed)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        (a.position ?? Date.parse(a.createdAt)) -
+          (b.position ?? Date.parse(b.createdAt)),
+    )
     .map((e) => ({
       id: e.id,
       date: e.date,

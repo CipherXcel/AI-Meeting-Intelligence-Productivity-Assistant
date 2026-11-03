@@ -197,9 +197,15 @@ api.post(
         message: z.string().trim().min(1).max(5000),
         noteIds: z.array(z.uuid()).max(30).default([]),
         folderIds: z.array(z.uuid()).max(10).default([]),
+        diaryDate: z.iso.date().optional(),
       })
       .parse(req.body);
     await owned("threads", d.threadId, req.userId);
+    if (d.diaryDate) {
+      if (d.noteIds.length || d.folderIds.length)
+        throw Error("Choose diary context or note context for one message");
+      await readDiaryForAgent(req);
+    }
     const noteContext = await resolveNoteContext(
       req.userId,
       d.noteIds,
@@ -229,6 +235,7 @@ api.post(
         controller.signal,
         () => readDiaryForAgent(req),
         noteContext,
+        d.diaryDate,
       );
     } catch (e: any) {
       emit({ type: "error", message: e.message });

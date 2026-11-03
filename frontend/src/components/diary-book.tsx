@@ -45,8 +45,9 @@ function Leaf({ page }: { page: BookPage }) {
       <header>
         <span>
           {day.toLocaleDateString(undefined, {
-            weekday: "long",
-            month: "long",
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
             year: "numeric",
           })}
         </span>
@@ -136,7 +137,7 @@ function fillLeaf(leaf: HTMLElement, page: BookPage) {
   const day = new Date(page.entry.date + "T12:00:00");
   leaf.querySelector("header span")!.textContent = day.toLocaleDateString(
     undefined,
-    { weekday: "long", month: "long", year: "numeric" },
+    { weekday: "short", day: "2-digit", month: "short", year: "numeric" },
   );
   leaf.querySelector("header strong")!.textContent = String(
     day.getDate(),
@@ -371,6 +372,8 @@ export function DiaryBook({
       instance: PageFlip | undefined;
     const node = document.createElement("div");
     node.className = "journal-flip-host";
+    node.style.width = `${dimensions.width * (dimensions.spread ? 2 : 1)}px`;
+    node.style.height = `${dimensions.height}px`;
     mount.current.appendChild(node);
     const click = (event: MouseEvent) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
@@ -404,8 +407,8 @@ export function DiaryBook({
           drawShadow: true,
           maxShadowOpacity: 0.3,
           flippingTime: 750,
-          usePortrait: true,
-          autoSize: true,
+          usePortrait: !dimensions.spread,
+          autoSize: false,
           showCover: false,
           mobileScrollSupport: true,
           useMouseEvents: true,
@@ -480,7 +483,7 @@ export function DiaryBook({
   return (
     <section
       ref={root}
-      className={`journal-reader book-only ${expanded ? "book-maximized" : ""}`}
+      className={`journal-reader book-only ${dimensions.spread ? "book-facing" : "book-single"} ${expanded ? "book-maximized" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label="Personal diary book"
@@ -517,6 +520,10 @@ export function DiaryBook({
         }
       }}
     >
+      <div className="book-reader-title">
+        <span>My diary</span>
+        <i aria-hidden="true">✦</i>
+      </div>
       <div
         className="book-binding"
         style={{ width: dimensions.width * (dimensions.spread ? 2 : 1) + 24 }}

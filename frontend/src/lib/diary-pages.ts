@@ -109,15 +109,17 @@ export function bookLayout(
     Math.min(viewWidth - (expanded ? 24 : 64), expanded ? 1400 : 1100),
   );
   const spread = available >= 700;
-  const width = Math.max(
-    64,
-    Math.min(
-      expanded ? 650 : 540,
-      available / (spread ? 2 : 1),
-      (viewHeight - (expanded ? 76 : 140)) / 1.65,
+  const width = Math.floor(
+    Math.max(
+      64,
+      Math.min(
+        expanded ? 680 : 600,
+        available / (spread ? 2 : 1),
+        (viewHeight - (expanded ? 128 : 180)) / 1.34,
+      ),
     ),
   );
-  return { width, height: Math.round(width * 1.65), spread };
+  return { width, height: Math.round(width * 1.34), spread };
 }
 
 function pagePosition(page: JournalEntry) {

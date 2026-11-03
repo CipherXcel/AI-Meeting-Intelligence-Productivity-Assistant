@@ -1,3 +1,4 @@
+import { NoteReader } from "./note-reader";
 import { TaskDetails } from "./task-details";
 import { Check, Plus, Download, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -86,34 +87,6 @@ export function WorkspaceDialogs({ w }: { w: Workspace }) {
       />
     );
   if (modal === "document" && selected)
-    return (
-      <Modal title={selected.title} close={() => w.setModal("")}>
-        <div className="section-head">
-          <span className="pill">Version {selected.version}</span>
-          <button className="secondary" onClick={() => w.downloadDoc(selected)}>
-            <Download size={15} />
-            Download
-          </button>
-        </div>
-        <div className="document-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {selected.content || "No extractable text in this document."}
-          </ReactMarkdown>
-        </div>
-        <button
-          className="primary"
-          onClick={() => {
-            w.setInput(
-              `Use my note "${selected.title}" (document ID ${selected.id}) to prepare an agenda and identify next steps.`,
-            );
-            w.setModal("");
-            w.navigate("Saarthi");
-          }}
-        >
-          Discuss with Saarthi
-          <ArrowRight size={16} />
-        </button>
-      </Modal>
-    );
+    return <NoteReader key={selected.id} w={w} />;
   return null;
 }

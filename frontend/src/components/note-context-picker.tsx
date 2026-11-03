@@ -1,6 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Paperclip, Folder, FileText, Search, X, Check } from "lucide-react";
+import {
+  Paperclip,
+  Folder,
+  FileText,
+  Search,
+  X,
+  Check,
+  BookHeart,
+} from "lucide-react";
 import { api } from "../lib/workspace";
 import type { Workspace } from "../lib/use-workspace";
 export function NoteContextPicker({ w }: { w: Workspace }) {
@@ -9,9 +17,36 @@ export function NoteContextPicker({ w }: { w: Workspace }) {
     [search, setSearch] = useState("");
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]),
     [error, setError] = useState("");
+  const [diaryDays, setDiaryDays] = useState<
+    { date: string; title: string; pages: number }[]
+  >([]);
+  const [diaryError, setDiaryError] = useState("");
+  useEffect(() => {
+    if (!open || tab !== "diary") return;
+    let alive = true;
+    setDiaryError("");
+    void api("/diary/days")
+      .then((rows) => {
+        if (alive) setDiaryDays(rows);
+      })
+      .catch(() => {
+        if (alive) {
+          setDiaryDays([]);
+          setDiaryError(
+            "Unlock Personal Diary with Remember access and Allow Saarthi to choose a day here.",
+          );
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, tab]);
   const root = useRef<HTMLDivElement>(null),
     toggle = useRef<HTMLButtonElement>(null);
-  const count = w.noteContext.noteIds.length + w.noteContext.folderIds.length;
+  const count =
+    w.noteContext.noteIds.length +
+    w.noteContext.folderIds.length +
+    (w.noteContext.diaryDate ? 1 : 0);
   useEffect(() => {
     if (!open) return;
     let alive = true;
@@ -33,11 +68,11 @@ export function NoteContextPicker({ w }: { w: Workspace }) {
   }, [open]);
   useEffect(() => {
     setOpen(false);
-    w.setNoteContext({ noteIds: [], folderIds: [] });
   }, [w.thread, w.user?.id]);
   const pick = (type: "noteIds" | "folderIds", id: string) =>
     w.setNoteContext((value) => ({
       ...value,
+      diaryDate: undefined,
       [type]: value[type].includes(id)
         ? value[type].filter((v) => v !== id)
         : [...value[type], id],
@@ -72,7 +107,11 @@ export function NoteContextPicker({ w }: { w: Workspace }) {
         }}
       >
         <Paperclip size={16} />
-        {count ? `${count} selected` : "Notes & folders"}
+        {w.noteContext.diaryDate
+          ? w.noteContext.diaryDate
+          : count
+            ? `${count} selected`
+            : "Add context"}
       </button>
       {open && (
         <div
@@ -106,19 +145,72 @@ export function NoteContextPicker({ w }: { w: Workspace }) {
             />
           </label>
           <div className="context-tabs" role="group" aria-label="Source type">
-            {["notes", "folders"].map((t) => (
+            {["notes", "folders", "diary"].map((t) => (
               <button
                 key={t}
                 type="button"
                 aria-pressed={tab === t}
                 onClick={() => setTab(t)}
               >
-                {t === "notes" ? "Notes" : "Folders"}
+                {t === "notes"
+                  ? "Notes"
+                  : t === "folders"
+                    ? "Folders"
+                    : "Diary day"}
               </button>
             ))}
           </div>
           {error && <p role="alert">{error}</p>}
-          <div className="context-items">
+          {tab === "diary" && (
+            <div className="context-items">
+              {diaryError ? (
+                <p>
+                  {diaryError}{" "}
+                  <button
+                    type="button"
+                    onClick={() => w.navigate("Personal Diary")}
+                  >
+                    Open diary ↗
+                  </button>
+                </p>
+              ) : (
+                diaryDays
+                  .filter((d) =>
+                    (d.date + " " + d.title)
+                      .toLowerCase()
+                      .includes(search.toLowerCase()),
+                  )
+                  .map((day) => (
+                    <button
+                      key={day.date}
+                      type="button"
+                      aria-pressed={w.noteContext.diaryDate === day.date}
+                      onClick={() => {
+                        w.setNoteContext({
+                          noteIds: [],
+                          folderIds: [],
+                          diaryDate: day.date,
+                        });
+                        setOpen(false);
+                      }}
+                    >
+                      <BookHeart size={16} />
+                      <span>
+                        {day.date} · {day.title}
+                        <small>{day.pages} pages · private reply</small>
+                      </span>
+                      {w.noteContext.diaryDate === day.date && (
+                        <Check size={16} />
+                      )}
+                    </button>
+                  ))
+              )}
+              {!diaryError && !diaryDays.length && (
+                <p>No saved diary days available.</p>
+              )}
+            </div>
+          )}
+          <div className="context-items" hidden={tab === "diary"}>
             {tab === "notes"
               ? notes.map((n) => (
                   <button

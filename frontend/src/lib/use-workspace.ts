@@ -31,6 +31,7 @@ export function useWorkspace() {
   const [noteContext, setNoteContext] = useState<{
     noteIds: string[];
     folderIds: string[];
+    diaryDate?: string;
   }>({ noteIds: [], folderIds: [] });
   const [signup, setSignup] = useState(false),
     [historySearch, setHistorySearch] = useState(""),
@@ -174,6 +175,7 @@ export function useWorkspace() {
   }
   async function openThread(id: string, owner = user) {
     if (chatBusy || !owner) return;
+    setNoteContext({ noteIds: [], folderIds: [] });
     const sequence = ++loadSequence.current;
     setThread(id);
     setQueue(false);
@@ -366,6 +368,7 @@ export function useWorkspace() {
   }
   function newChat() {
     if (chatBusy) return;
+    setNoteContext({ noteIds: [], folderIds: [] });
     loadSequence.current++;
     setThread("");
     setMessages([]);

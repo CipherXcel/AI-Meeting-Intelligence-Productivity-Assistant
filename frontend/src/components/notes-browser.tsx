@@ -268,10 +268,31 @@ export function NotesBrowser({ w }: { w: Workspace }) {
           )}
           <div className={`document-grid notes-${layout}`} aria-busy={finding}>
             {rows.map((d) => (
-              <article key={d.id} className="document-card">
+              <article
+                key={d.id}
+                className="document-card"
+                data-kind={
+                  d.mime === "application/pdf"
+                    ? "pdf"
+                    : d.mime?.includes("word")
+                      ? "doc"
+                      : d.title.toLowerCase().endsWith(".md")
+                        ? "md"
+                        : "text"
+                }
+              >
                 <button className="document-open" onClick={() => w.readDoc(d)}>
                   <span className="file-icon">
                     <FileText size={25} />
+                    <small>
+                      {d.mime === "application/pdf"
+                        ? "PDF"
+                        : d.mime?.includes("word")
+                          ? "DOC"
+                          : d.title.toLowerCase().endsWith(".md")
+                            ? "MD"
+                            : "TXT"}
+                    </small>
                   </span>
                   <span className="pill">v{d.version}</span>
                   <h3>{d.title}</h3>

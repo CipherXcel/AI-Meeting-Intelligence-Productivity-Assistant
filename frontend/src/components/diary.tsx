@@ -1506,6 +1506,10 @@ export function Diary({ userId }: { userId: string }) {
                       <DiaryDayCover
                         date={day.date}
                         favourite={day.favourite}
+                        mood={
+                          [...day.pages].reverse().find((page) => page.mood)
+                            ?.mood
+                        }
                       />
                       <span className="diary-day-copy">
                         <small>
