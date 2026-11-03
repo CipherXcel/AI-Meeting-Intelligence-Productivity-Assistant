@@ -9,6 +9,8 @@ import {
   Trash2,
   Pencil,
   Search,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { api, dateLabel } from "../lib/workspace";
 import type { Workspace } from "../lib/use-workspace";
@@ -18,6 +20,41 @@ export function NotesBrowser({ w }: { w: Workspace }) {
   const [folders, setFolders] = useState<FolderRow[]>([]),
     [folder, setFolder] = useState("all");
   const [restored, setRestored] = useState(false);
+  const [layout, setLayout] = useState("grid");
+  const [sort, setSort] = useState("newest");
+  const [results, setResults] = useState<typeof w.docs>([]);
+  const [finding, setFinding] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setSearchError("");
+    if (!w.search.trim()) {
+      setResults([]);
+      setFinding(false);
+      return;
+    }
+    setFinding(true);
+    const timer = setTimeout(() => {
+      void api(`/documents?q=${encodeURIComponent(w.search.trim())}`)
+        .then((rows) => {
+          if (active) {
+            setResults(rows);
+            setFinding(false);
+          }
+        })
+        .catch((e) => {
+          if (active) {
+            setSearchError(e.message);
+            setFinding(false);
+            setResults([]);
+          }
+        });
+    }, 220);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [w.search, w.docs]);
   const [editing, setEditing] = useState<string | null>(null),
     [name, setName] = useState("");
   async function reload() {
@@ -28,7 +65,7 @@ export function NotesBrowser({ w }: { w: Workspace }) {
       .then((rows: FolderRow[]) => {
         setFolders(rows);
         const saved = localStorage.getItem(`notes:folder:${w.user!.id}`);
-        if (saved === "none" || rows.some((row) => row.id === saved))
+        if (saved === "none" || rows.some((r) => r.id === saved))
           setFolder(saved!);
         setRestored(true);
       })
@@ -38,12 +75,21 @@ export function NotesBrowser({ w }: { w: Workspace }) {
     if (restored) localStorage.setItem(`notes:folder:${w.user!.id}`, folder);
   }, [folder, restored]);
   const selected = folders.find((f) => f.id === folder);
-  const rows = w.docs.filter(
-    (d) =>
-      (folder === "all" ||
-        (folder === "none" ? !d.folder_id : d.folder_id === folder)) &&
-      d.title.toLowerCase().includes(w.search.toLowerCase()),
-  );
+  const rows = (w.search.trim() ? results : w.docs)
+    .filter(
+      (d) =>
+        folder === "all" ||
+        (folder === "none" ? !d.folder_id : d.folder_id === folder),
+    )
+    .sort((a, b) =>
+      sort === "title"
+        ? a.title.localeCompare(b.title)
+        : sort === "size"
+          ? b.size - a.size
+          : sort === "oldest"
+            ? Date.parse(a.created_at) - Date.parse(b.created_at)
+            : Date.parse(b.created_at) - Date.parse(a.created_at),
+    );
   return (
     <div className="page notes-browser">
       <Heading
@@ -112,7 +158,7 @@ export function NotesBrowser({ w }: { w: Workspace }) {
               <Search size={16} />
               <input
                 aria-label="Search notes"
-                placeholder="Find a note…"
+                placeholder="Search titles and content…"
                 value={w.search}
                 onChange={(e) => w.setSearch(e.target.value)}
               />
@@ -148,6 +194,44 @@ export function NotesBrowser({ w }: { w: Workspace }) {
               </>
             )}
           </div>
+          <div className="notes-view-toolbar">
+            <span aria-live="polite">
+              {finding
+                ? "Searching…"
+                : `${rows.length} note${rows.length === 1 ? "" : "s"}`}
+            </span>
+            <select
+              aria-label="Sort notes"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+              <option value="size">Largest first</option>
+            </select>
+            <div
+              className="notes-layout-switch"
+              role="group"
+              aria-label="Notes layout"
+            >
+              <button
+                aria-label="Grid view"
+                aria-pressed={layout === "grid"}
+                onClick={() => setLayout("grid")}
+              >
+                <LayoutGrid size={17} />
+              </button>
+              <button
+                aria-label="List view"
+                aria-pressed={layout === "list"}
+                onClick={() => setLayout("list")}
+              >
+                <List size={17} />
+              </button>
+            </div>
+          </div>
+          {searchError && <p role="alert">{searchError}</p>}
           {editing && (
             <form
               className="notes-folder-form"
@@ -182,7 +266,7 @@ export function NotesBrowser({ w }: { w: Workspace }) {
               </button>
             </form>
           )}
-          <div className="document-grid">
+          <div className={`document-grid notes-${layout}`} aria-busy={finding}>
             {rows.map((d) => (
               <article key={d.id} className="document-card">
                 <button className="document-open" onClick={() => w.readDoc(d)}>
@@ -191,6 +275,7 @@ export function NotesBrowser({ w }: { w: Workspace }) {
                   </span>
                   <span className="pill">v{d.version}</span>
                   <h3>{d.title}</h3>
+                  {d.excerpt && <p className="note-excerpt">{d.excerpt}</p>}
                   <p>
                     {dateLabel(d.created_at, w.user!)} ·{" "}
                     {Math.max(1, Math.round(d.size / 1024))} KB
@@ -241,12 +326,13 @@ export function NotesBrowser({ w }: { w: Workspace }) {
               </article>
             ))}
           </div>
-          {!rows.length && (
+          {!rows.length && !finding && !searchError && (
             <div className="empty">
               <Folder size={30} />
               <p>
-                No notes here yet. Use each note’s folder selector to move it
-                here.
+                {w.search.trim()
+                  ? "No matches. Try another word or search All notes."
+                  : "No notes here yet. Upload a file or move a note into this folder."}
               </p>
             </div>
           )}

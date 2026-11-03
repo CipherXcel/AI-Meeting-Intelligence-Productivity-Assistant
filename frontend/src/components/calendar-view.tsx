@@ -26,10 +26,16 @@ function moveMonth(day: string, amount: number) {
   date.setUTCMonth(date.getUTCMonth() + amount);
   return date.toISOString().slice(0, 10);
 }
-export function CalendarView({ w }: { w: Workspace }) {
+export function CalendarView({
+  w,
+  embedded = false,
+}: {
+  w: Workspace;
+  embedded?: boolean;
+}) {
   const user = w.user!,
     today = dayKey(Date.now(), user.timezone);
-  const [view, setView] = useState("month"),
+  const [view, setView] = useState(embedded ? "week" : "month"),
     [month, setMonth] = useState(monthKey(today)),
     [selected, setSelected] = useState(today),
     [events, setEvents] = useState<Row[]>([]),
@@ -122,24 +128,32 @@ export function CalendarView({ w }: { w: Workspace }) {
       timeZone: "UTC",
     });
   return (
-    <div className="page calendar-page month-page">
-      <Heading
-        eyebrow="YOUR SCHEDULE"
-        title="Calendar"
-        action={
-          <button
-            className="primary"
-            onClick={() => {
-              w.setInput("Help me plan a meeting.");
-              w.navigate("Saarthi");
-            }}
-          >
-            Plan with Saarthi <Sparkle size={15} />
-          </button>
-        }
-      >
-        Meetings, tasks, and focus in one place.
-      </Heading>
+    <div
+      className={
+        embedded
+          ? "calendar-page month-page embedded-calendar"
+          : "page calendar-page month-page"
+      }
+    >
+      {!embedded && (
+        <Heading
+          eyebrow="YOUR SCHEDULE"
+          title="Calendar"
+          action={
+            <button
+              className="primary"
+              onClick={() => {
+                w.setInput("Help me plan a meeting.");
+                w.navigate("Saarthi");
+              }}
+            >
+              Plan with Saarthi <Sparkle size={15} />
+            </button>
+          }
+        >
+          Meetings, tasks, and focus in one place.
+        </Heading>
+      )}
       <div
         className="calendar-view-switch segmented"
         aria-label="Calendar view"

@@ -81,3 +81,34 @@ export async function searchNotes(user: string, search: string) {
         : "This account has no saved notes.",
   };
 }
+
+export async function resolveNoteContext(
+  user: string,
+  noteIds: string[] = [],
+  folderIds: string[] = [],
+) {
+  const ids = new Set<string>();
+  for (const id of noteIds) {
+    const [doc] = await query(
+      "SELECT id FROM documents WHERE id=$1 AND user_id=$2",
+      [id, user],
+    );
+    if (!doc) throw Error("Selected note is no longer available");
+    ids.add(id);
+  }
+  for (const id of folderIds) {
+    const [folder] = await query(
+      "SELECT id FROM document_folders WHERE id=$1 AND user_id=$2",
+      [id, user],
+    );
+    if (!folder) throw Error("Selected folder is no longer available");
+    const docs = await query(
+      "SELECT id FROM documents WHERE folder_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT 201",
+      [id, user],
+    );
+    for (const doc of docs) ids.add(doc.id);
+  }
+  if (ids.size > 200)
+    throw Error("Choose fewer folders or up to 200 notes for one message");
+  return [...ids];
+}

@@ -452,7 +452,7 @@ export function Diary({ userId }: { userId: string }) {
       await refresh();
     });
   }
-  async function pick(e: Entry | null) {
+  async function pick(e: Entry | null, editing = false) {
     await action(async () => {
       const latest = e?.id === current.current?.id ? current.current : e;
       await flush();
@@ -460,7 +460,8 @@ export function Diary({ userId }: { userId: string }) {
       setDraft(latest);
       setSaved("");
       setSelectedSticker("");
-      setPreview(true);
+      setStickersOpen(false);
+      setPreview(!editing);
     });
   }
   async function create(targetDate?: string, append = false, afterId?: string) {
@@ -947,7 +948,7 @@ export function Diary({ userId }: { userId: string }) {
                         setFilter("all");
                         const firstPage = dailyPages(rows)[0];
                         if (firstPage) void pick(firstPage);
-                        else void create(day);
+                        else void pick(null);
                       }}
                     >
                       {i + 1}
@@ -1017,6 +1018,20 @@ export function Diary({ userId }: { userId: string }) {
                     {saved || (draft.trashed ? "In trash" : "Private entry")}
                   </span>
                   <div>
+                    {!preview && !draft.trashed && (
+                      <button
+                        className="diary-explicit-save"
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            await flush();
+                            setSaved("Saved securely");
+                          })
+                        }
+                      >
+                        <Check size={15} /> Save
+                      </button>
+                    )}
                     <div
                       className="diary-segmented"
                       role="group"
@@ -1073,39 +1088,6 @@ export function Diary({ userId }: { userId: string }) {
                   </div>
                 </div>
                 <div className="diary-page-content">
-                  <nav
-                    className="diary-day-pagination"
-                    aria-label="Pages in this day"
-                  >
-                    <button
-                      aria-label="Previous page in this day"
-                      disabled={busy || dayPageIndex <= 0}
-                      onClick={() => void pick(dayPages[dayPageIndex - 1])}
-                    >
-                      <ChevronLeft size={17} />
-                    </button>
-                    <span>
-                      {draft.date}{" "}
-                      <b>
-                        Page {dayPageIndex + 1} of {dayPages.length}
-                      </b>
-                    </span>
-                    <button
-                      aria-label="Next page in this day"
-                      disabled={busy || dayPageIndex >= dayPages.length - 1}
-                      onClick={() => void pick(dayPages[dayPageIndex + 1])}
-                    >
-                      <ChevronRight size={17} />
-                    </button>
-                    {!draft.trashed && (
-                      <button
-                        disabled={busy}
-                        onClick={() => void create(draft.date, true)}
-                      >
-                        <Plus size={16} /> Add page
-                      </button>
-                    )}
-                  </nav>
                   <div className="diary-date-row">
                     <input
                       type="date"
@@ -1291,102 +1273,157 @@ export function Diary({ userId }: { userId: string }) {
                     fullscreen={toggleFullscreen}
                     expanded={expanded}
                     onStickers={() => setStickersOpen(!stickersOpen)}
-                  />
-                  <div className="sheet-sticker-library">
-                    {stickersOpen && !draft.trashed && !preview && (
-                      <div className="diary-sticker-picker">
-                        <header>
-                          <div>
-                            <strong>Sticker studio</strong>
-                            <small>A little mood for every page</small>
-                          </div>
-                          <button
-                            aria-label="Close sticker studio"
-                            onClick={() => setStickersOpen(false)}
-                          >
-                            <X size={16} />
-                          </button>
-                        </header>
-                        <input
-                          type="search"
-                          aria-label="Find a sticker"
-                          placeholder="Find a sticker…"
-                          value={stickerSearch}
-                          onChange={(e) => setStickerSearch(e.target.value)}
-                        />
-                        <div
-                          className="diary-segmented"
-                          role="group"
-                          aria-label="Sticker collection"
-                        >
-                          {[
-                            ["all", "All"],
-                            ["animated", "Illustrated"],
-                            ["classic", "Classic"],
-                          ].map(([id, label]) => (
-                            <button
-                              key={id}
-                              aria-pressed={stickerPack === id}
-                              onClick={() => setStickerPack(id)}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="diary-sticker-grid">
-                          {Object.entries(art)
-                            .filter(
-                              ([kind]) =>
-                                kind.includes(
-                                  stickerSearch.trim().toLowerCase(),
-                                ) &&
-                                (stickerPack === "all" ||
-                                  (stickerPack === "animated"
-                                    ? !!onlineArt[kind]
-                                    : !onlineArt[kind])),
-                            )
-                            .map(([kind]) => (
+                    stickersOpen={stickersOpen}
+                    closeStickers={() => setStickersOpen(false)}
+                    stickerMenu={
+                      <div className="sheet-sticker-library">
+                        {stickersOpen && !draft.trashed && !preview && (
+                          <div className="diary-sticker-picker">
+                            <header>
+                              <div>
+                                <strong>Sticker studio</strong>
+                                <small>A little mood for every page</small>
+                              </div>
                               <button
-                                key={kind}
-                                title={`Add ${kind}`}
-                                aria-label={`Add ${kind} sticker`}
-                                disabled={draft.stickers.length >= 12}
-                                onClick={() => {
-                                  const s = {
-                                    id: crypto.randomUUID(),
-                                    kind,
-                                    x: 15 + (draft.stickers.length % 4) * 23,
-                                    y: 50,
-                                    size: 52,
-                                  };
-                                  edit({ stickers: [...draft.stickers, s] });
-                                  setSelectedSticker(s.id);
-                                }}
+                                aria-label="Close sticker studio"
+                                onClick={() => setStickersOpen(false)}
                               >
-                                <StickerArt kind={kind} />
-                                <small>{kind}</small>
+                                <X size={16} />
                               </button>
-                            ))}
-                        </div>
-                        <small>
-                          Up to 12 stickers. Drag to move; select one to resize.
-                          {stickerSearch &&
-                            !Object.keys(art).some((kind) =>
-                              kind.includes(stickerSearch.trim().toLowerCase()),
-                            ) &&
-                            " No matching stickers. Try a different word."}
-                        </small>
-                        <a
-                          className="diary-sticker-credit"
-                          href="https://googlefonts.github.io/noto-emoji-files/?view=docs"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Noto illustrations · Google · CC BY 4.0
-                        </a>
+                            </header>
+                            <input
+                              type="search"
+                              aria-label="Find a sticker"
+                              placeholder="Find a sticker…"
+                              value={stickerSearch}
+                              onChange={(e) => setStickerSearch(e.target.value)}
+                            />
+                            <div
+                              className="diary-segmented"
+                              role="group"
+                              aria-label="Sticker collection"
+                            >
+                              {[
+                                ["all", "All"],
+                                ["animated", "Illustrated"],
+                                ["classic", "Classic"],
+                              ].map(([id, label]) => (
+                                <button
+                                  key={id}
+                                  aria-pressed={stickerPack === id}
+                                  onClick={() => setStickerPack(id)}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="diary-sticker-grid">
+                              {Object.entries(art)
+                                .filter(
+                                  ([kind]) =>
+                                    kind.includes(
+                                      stickerSearch.trim().toLowerCase(),
+                                    ) &&
+                                    (stickerPack === "all" ||
+                                      (stickerPack === "animated"
+                                        ? !!onlineArt[kind]
+                                        : !onlineArt[kind])),
+                                )
+                                .map(([kind]) => (
+                                  <button
+                                    key={kind}
+                                    title={`Add ${kind}`}
+                                    aria-label={`Add ${kind} sticker`}
+                                    disabled={draft.stickers.length >= 12}
+                                    onClick={() => {
+                                      const s = {
+                                        id: crypto.randomUUID(),
+                                        kind,
+                                        x:
+                                          15 + (draft.stickers.length % 4) * 23,
+                                        y: 50,
+                                        size: 52,
+                                      };
+                                      edit({
+                                        stickers: [...draft.stickers, s],
+                                      });
+                                      setSelectedSticker(s.id);
+                                      setStickersOpen(false);
+                                    }}
+                                  >
+                                    <StickerArt kind={kind} />
+                                    <small>{kind}</small>
+                                  </button>
+                                ))}
+                            </div>
+                            <small>
+                              Up to 12 stickers. Drag to move; select one to
+                              resize.
+                              {stickerSearch &&
+                                !Object.keys(art).some((kind) =>
+                                  kind.includes(
+                                    stickerSearch.trim().toLowerCase(),
+                                  ),
+                                ) &&
+                                " No matching stickers. Try a different word."}
+                            </small>
+                            <a
+                              className="diary-sticker-credit"
+                              href="https://googlefonts.github.io/noto-emoji-files/?view=docs"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Noto illustrations · Google · CC BY 4.0
+                            </a>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    }
+                    save={() =>
+                      void action(async () => {
+                        await flush();
+                        setSaved("Saved securely");
+                      })
+                    }
+                    saving={busy}
+                    pageControls={
+                      <div className="sheet-page-navigation">
+                        <button
+                          title="Previous page"
+                          aria-label="Previous page while editing"
+                          disabled={busy || dayPageIndex <= 0}
+                          onClick={() =>
+                            void pick(dayPages[dayPageIndex - 1], true)
+                          }
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span>
+                          {dayPageIndex + 1} / {dayPages.length}
+                        </span>
+                        <button
+                          title="Next page"
+                          aria-label="Next page while editing"
+                          disabled={busy || dayPageIndex >= dayPages.length - 1}
+                          onClick={() =>
+                            void pick(dayPages[dayPageIndex + 1], true)
+                          }
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                        <button
+                          title="Add page after this one"
+                          aria-label="Add page after this one while editing"
+                          disabled={busy || !!draft.trashed}
+                          onClick={() =>
+                            void create(draft.date, true, draft.id)
+                          }
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    }
+                  />
                   <label className="diary-tag-input">
                     Tags
                     <input
@@ -1503,12 +1540,16 @@ export function Diary({ userId }: { userId: string }) {
                 {!ordered.length && (
                   <div className="journal-index-empty">
                     <BookHeart size={40} />
-                    <h3>Your next chapter starts here.</h3>
+                    <h3>
+                      {date
+                        ? "No pages for this day yet."
+                        : "Your next chapter starts here."}
+                    </h3>
                     <p>
                       Choose a day on the calendar or create your first page.
                     </p>
                     <button onClick={() => void create()}>
-                      Write today's page →
+                      {date ? `Write for ${date}` : "Write today’s page"} →
                     </button>
                   </div>
                 )}

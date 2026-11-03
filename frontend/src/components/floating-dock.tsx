@@ -20,9 +20,7 @@ const items = [
   { name: "Overview", icon: LayoutDashboard },
   { name: "Tasks", icon: ListTodo },
   { name: "Notes & files", icon: FileText },
-  { name: "Calendar", icon: CalendarDays },
   { name: "Personal Diary", icon: BookHeart },
-  { name: "All proposals", icon: ShieldCheck },
 ] as const;
 type Position = "left" | "right" | "bottom";
 export function FloatingDock({
@@ -180,7 +178,7 @@ export function FloatingDock({
           >
             <Icon size={21} />
             <span className="dock-label">{name}</span>
-            {name === "All proposals" && pending > 0 && (
+            {name === "Saarthi" && pending > 0 && (
               <i className="dock-count">{pending}</i>
             )}
           </button>

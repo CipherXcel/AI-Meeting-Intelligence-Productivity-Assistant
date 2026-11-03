@@ -12,6 +12,7 @@ import { query, owned } from "./db.js";
 import { auth } from "./security.js";
 import { authRouter } from "./auth.js";
 import { calendarRouter, interval } from "./calendar.js";
+import { resolveNoteContext } from "./notes.js";
 import { runAgent } from "./agent.js";
 import { approve, meetingSchema } from "./tools.js";
 import { upload, download, removeDocument } from "./storage.js";
@@ -194,9 +195,16 @@ api.post(
       .object({
         threadId: z.uuid(),
         message: z.string().trim().min(1).max(5000),
+        noteIds: z.array(z.uuid()).max(30).default([]),
+        folderIds: z.array(z.uuid()).max(10).default([]),
       })
       .parse(req.body);
     await owned("threads", d.threadId, req.userId);
+    const noteContext = await resolveNoteContext(
+      req.userId,
+      d.noteIds,
+      d.folderIds,
+    );
     res.set({
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -220,6 +228,7 @@ api.post(
         emit,
         controller.signal,
         () => readDiaryForAgent(req),
+        noteContext,
       );
     } catch (e: any) {
       emit({ type: "error", message: e.message });
@@ -403,14 +412,31 @@ api.patch("/documents/:id/folder", async (req, res) => {
   ]);
   res.json({ ok: true });
 });
-api.get("/documents", async (req, res) =>
+api.get("/documents", async (req, res) => {
+  const term = z
+    .string()
+    .max(200)
+    .parse(req.query.q || "")
+    .trim()
+    .toLowerCase();
+  const rows = await query(
+    "SELECT id,title,mime,size,version,created_at,folder_id,content FROM documents WHERE user_id=$1" +
+      (term ? " AND (LOWER(title) LIKE $2 OR LOWER(content) LIKE $2)" : "") +
+      " ORDER BY created_at DESC",
+    term ? [req.userId, `%${term.replace(/[\\%_]/g, "\\$&")}%`] : [req.userId],
+  );
   res.json(
-    await query(
-      "SELECT id,title,mime,size,version,created_at,folder_id FROM documents WHERE user_id=$1 ORDER BY created_at DESC",
-      [req.userId],
-    ),
-  ),
-);
+    rows.map(({ content, ...doc }) => {
+      const start = term
+        ? Math.max(0, content.toLowerCase().indexOf(term) - 60)
+        : 0;
+      return {
+        ...doc,
+        excerpt: (start ? "…" : "") + content.slice(start, start + 200),
+      };
+    }),
+  );
+});
 api.post(
   "/documents",
   multer({

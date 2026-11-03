@@ -25,6 +25,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { NoteContextPicker } from "./note-context-picker";
 import { SaarthiDiary } from "./saarthi-diary";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -61,7 +62,7 @@ export default function WorkspaceApp() {
     toast,
     signup,
   } = w;
-  const showQueue = w.queue && !!thread;
+  const showQueue = w.queue;
   const actionPanel = useRef<HTMLElement>(null),
     actionToggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -374,7 +375,7 @@ export default function WorkspaceApp() {
         <FloatingDock
           userId={user.id}
           view={view}
-          navigate={w.navigate}
+          navigate={w.navigateMenu}
           pending={pending.length}
         />
         {view === "Saarthi" ? (
@@ -403,44 +404,42 @@ export default function WorkspaceApp() {
                         </small>
                       </div>
                     </div>
-                    {thread && (
+                    {
                       <button
                         className={`queue-toggle ${w.queue ? "active" : ""}`}
                         ref={actionToggle}
-                        aria-label="Conversation actions"
+                        aria-label="All proposals"
                         aria-controls="conversation-actions"
                         aria-expanded={w.queue}
                         onClick={() => w.setQueue(!w.queue)}
                       >
                         <ShieldCheck size={17} />
-                        <span>Actions</span>
+                        <span>Proposals</span>
                         <b>
                           {
-                            proposals.filter(
-                              (p) =>
-                                p.thread_id === thread &&
-                                p.status === "pending",
-                            ).length
+                            proposals.filter((p) => p.status === "pending")
+                              .length
                           }
                         </b>
                         <ChevronDown size={13} className="actions-chevron" />
                       </button>
-                    )}
+                    }
                   </div>
                   {showQueue && (
                     <aside
                       ref={actionPanel}
                       id="conversation-actions"
                       className="conversation-actions"
-                      aria-label="Conversation actions"
+                      aria-label="All proposals"
                     >
                       <Proposals
                         key={thread}
-                        items={proposals.filter((p) => p.thread_id === thread)}
+                        items={proposals}
                         user={user}
                         busy={busy}
                         act={w.proposalAction}
                         compact
+                        openThread={(id) => w.openThread(id)}
                       />
                       <button
                         className="text-button"
@@ -595,6 +594,7 @@ export default function WorkspaceApp() {
                         }}
                       />
                       <div className="composer-tools">
+                        <NoteContextPicker w={w} />
                         <button
                           type="button"
                           className="icon-button"
@@ -648,7 +648,7 @@ export default function WorkspaceApp() {
             </section>
           </div>
         ) : (
-          <WorkspaceViews w={w} />
+          <WorkspaceViews key={w.viewEpoch} w={w} />
         )}
       </div>
       <input

@@ -27,6 +27,11 @@ export function useWorkspace() {
     [input, setInput] = useState(""),
     [toast, setToast] = useState(""),
     [bootError, setBootError] = useState("");
+  const [viewEpoch, setViewEpoch] = useState(0);
+  const [noteContext, setNoteContext] = useState<{
+    noteIds: string[];
+    folderIds: string[];
+  }>({ noteIds: [], folderIds: [] });
   const [signup, setSignup] = useState(false),
     [historySearch, setHistorySearch] = useState(""),
     [search, setSearch] = useState(""),
@@ -72,8 +77,32 @@ export function useWorkspace() {
     );
     return () => clearInterval(timer);
   }, [hasPrivateDiary, view]);
-  function navigate(v: View) {
+  function navigate(v: View, fresh = false) {
+    if (fresh && chatBusy) {
+      notify("Stop the current response before starting a fresh view.");
+      return;
+    }
+    if (v === "Calendar") v = "Overview";
     const commit = () => {
+      if (fresh) {
+        setViewEpoch((n) => n + 1);
+        setSelected(null);
+        setModal("");
+        setTaskFilter("all");
+        if (user && v === "Personal Diary")
+          localStorage.removeItem(`diary:position:${user.id}`);
+        if (user && v === "Notes & files")
+          localStorage.removeItem(`notes:folder:${user.id}`);
+        if (v === "Saarthi") {
+          loadSequence.current++;
+          setThread("");
+          setMessages([]);
+          setThreadLoading(false);
+          setInput("");
+          setNoteContext({ noteIds: [], folderIds: [] });
+          if (user) localStorage.removeItem(`saarthi:last:${user.id}`);
+        }
+      }
       setView(v);
       setQueue(false);
       window.scrollTo({ top: 0 });
@@ -82,7 +111,7 @@ export function useWorkspace() {
     };
     if (
       view === "Personal Diary" &&
-      v !== view &&
+      (v !== view || fresh) &&
       !window.dispatchEvent(
         new CustomEvent("diary-before-leave", {
           cancelable: true,
@@ -105,6 +134,7 @@ export function useWorkspace() {
     setThreads([]);
     setTasks([]);
     setDocs([]);
+    setNoteContext({ noteIds: [], folderIds: [] });
     setProposals([]);
     setFocusSessions([]);
     setActivity([]);
@@ -180,7 +210,7 @@ export function useWorkspace() {
         "Profile",
       ].includes(savedView || "")
     )
-      setView(savedView as View);
+      setView(savedView === "Calendar" ? "Overview" : (savedView as View));
     setStatus("in");
   }
   useEffect(() => {
@@ -371,7 +401,7 @@ export function useWorkspace() {
       const response: Response = await api(
         "/diary/chat",
         "POST",
-        { threadId: id, message: text },
+        { threadId: id, message: text, ...noteContext },
         true,
         controller.signal,
       );
@@ -565,6 +595,10 @@ export function useWorkspace() {
     bottom,
     upload,
     uploadFolder,
+    viewEpoch,
+    navigateMenu: (v: View) => navigate(v, true),
+    noteContext,
+    setNoteContext,
     composer,
     abort,
     pref,

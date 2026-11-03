@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";
 import {
   useEffect,
   useRef,
@@ -17,6 +18,8 @@ import {
   Maximize2,
   Minimize2,
   ImagePlus,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import { prepareDiaryImage, type DiaryImage } from "../lib/diary-images";
 import { strokeHit, type TextBox } from "../lib/diary-canvas";
@@ -47,6 +50,12 @@ export function DiaryCanvas({
   fullscreen,
   expanded,
   onStickers,
+  stickersOpen,
+  closeStickers,
+  stickerMenu,
+  save,
+  saving,
+  pageControls,
 }: {
   pageTitle: string;
   pageDate: string;
@@ -57,7 +66,29 @@ export function DiaryCanvas({
   fullscreen: () => void;
   expanded: boolean;
   onStickers: () => void;
+  stickersOpen: boolean;
+  closeStickers: () => void;
+  stickerMenu: ReactNode;
+  save: () => void;
+  saving: boolean;
+  pageControls: ReactNode;
 }) {
+  const stickerRoot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!stickersOpen) return;
+    const close = (event: globalThis.PointerEvent) => {
+      if (!stickerRoot.current?.contains(event.target as Node)) closeStickers();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeStickers();
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [stickersOpen, closeStickers]);
   const [mode, setMode] = useState<"write" | "place" | "draw" | "erase">(
       "write",
     ),
@@ -259,6 +290,16 @@ export function DiaryCanvas({
     selectedImage = value.images?.find((image) => image.id === selected);
   return (
     <section className="unified-journal">
+      {!readOnly && (
+        <div className="sheet-pagebar">
+          <span>Page</span>
+          {pageControls}
+          <button className="sheet-save" disabled={saving} onClick={save}>
+            <Check size={14} />
+            {saving ? "Saving…" : "Save page"}
+          </button>
+        </div>
+      )}
       <div
         className="sheet-toolbar"
         role="toolbar"
@@ -307,7 +348,24 @@ export function DiaryCanvas({
             >
               <Redo2 size={16} />
             </button>
-            <button onClick={onStickers}>✦ Stickers</button>
+            <div className="sheet-sticker-dropdown" ref={stickerRoot}>
+              <button
+                onClick={onStickers}
+                aria-expanded={stickersOpen}
+                aria-label="Choose a sticker"
+              >
+                ✦ Stickers <ChevronDown size={12} />
+              </button>
+              {stickersOpen && (
+                <div
+                  className="sheet-sticker-popover"
+                  role="dialog"
+                  aria-label="Sticker picker"
+                >
+                  {stickerMenu}
+                </div>
+              )}
+            </div>
             <button
               disabled={(value.images?.length || 0) >= 3}
               title="Attach image"
@@ -575,127 +633,145 @@ export function DiaryCanvas({
           </button>
         ))}
       </div>
-      {!readOnly && (box || sticker || selectedImage) && (
-        <div className="sheet-selection-tools">
-          {box && (
-            <>
+      {!readOnly &&
+        (box || sticker || selectedImage) &&
+        createPortal(
+          <div
+            className="sheet-selection-tools"
+            role="toolbar"
+            aria-label="Selected item controls"
+          >
+            <strong>
+              {selectedImage
+                ? "Image selected"
+                : sticker
+                  ? "Sticker selected"
+                  : "Text selected"}
+            </strong>
+            {box && (
+              <>
+                <label>
+                  Text size
+                  <input
+                    type="range"
+                    min="16"
+                    max="48"
+                    value={box.size}
+                    onChange={(e) =>
+                      change({
+                        textBoxes: value.textBoxes?.map((b) =>
+                          b.id === box.id
+                            ? { ...b, size: Number(e.target.value) }
+                            : b,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Width
+                  <input
+                    type="range"
+                    min="120"
+                    max={800}
+                    value={box.width}
+                    onChange={(e) =>
+                      change({
+                        textBoxes: value.textBoxes?.map((b) =>
+                          b.id === box.id
+                            ? {
+                                ...b,
+                                width: Number(e.target.value),
+                                x: Math.min(b.x, 1000 - Number(e.target.value)),
+                              }
+                            : b,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
+            {sticker && (
               <label>
-                Text size
+                Sticker size
                 <input
                   type="range"
-                  min="16"
-                  max="48"
-                  value={box.size}
+                  min="28"
+                  max="100"
+                  value={sticker.size}
                   onChange={(e) =>
                     change({
-                      textBoxes: value.textBoxes?.map((b) =>
-                        b.id === box.id
-                          ? { ...b, size: Number(e.target.value) }
-                          : b,
+                      stickers: value.stickers.map((s) =>
+                        s.id === sticker.id
+                          ? { ...s, size: Number(e.target.value) }
+                          : s,
                       ),
                     })
                   }
                 />
               </label>
+            )}
+            {selectedImage && (
               <label>
-                Width
+                Image width
                 <input
                   type="range"
-                  min="120"
-                  max={800}
-                  value={box.width}
-                  onChange={(e) =>
+                  min="100"
+                  max="800"
+                  value={selectedImage.width}
+                  onChange={(event) => {
+                    const width = Number(event.target.value),
+                      height = Math.min(
+                        1300,
+                        (width * selectedImage.height) / selectedImage.width,
+                      );
                     change({
-                      textBoxes: value.textBoxes?.map((b) =>
-                        b.id === box.id
+                      images: value.images?.map((image) =>
+                        image.id === selectedImage.id
                           ? {
-                              ...b,
-                              width: Number(e.target.value),
-                              x: Math.min(b.x, 1000 - Number(e.target.value)),
+                              ...image,
+                              width,
+                              height,
+                              x: Math.min(image.x, 1000 - width),
+                              y: Math.min(image.y, 1400 - height),
                             }
-                          : b,
+                          : image,
                       ),
-                    })
-                  }
+                    });
+                  }}
                 />
               </label>
-            </>
-          )}
-          {sticker && (
-            <label>
-              Sticker size
-              <input
-                type="range"
-                min="28"
-                max="100"
-                value={sticker.size}
-                onChange={(e) =>
-                  change({
-                    stickers: value.stickers.map((s) =>
-                      s.id === sticker.id
-                        ? { ...s, size: Number(e.target.value) }
-                        : s,
-                    ),
-                  })
-                }
-              />
-            </label>
-          )}
-          {selectedImage && (
-            <label>
-              Image width
-              <input
-                type="range"
-                min="100"
-                max="800"
-                value={selectedImage.width}
-                onChange={(event) => {
-                  const width = Number(event.target.value),
-                    height = Math.min(
-                      1300,
-                      (width * selectedImage.height) / selectedImage.width,
-                    );
-                  change({
-                    images: value.images?.map((image) =>
-                      image.id === selectedImage.id
-                        ? {
-                            ...image,
-                            width,
-                            height,
-                            x: Math.min(image.x, 1000 - width),
-                            y: Math.min(image.y, 1400 - height),
-                          }
-                        : image,
+            )}
+            <button
+              onClick={() => {
+                if (box)
+                  commit({
+                    textBoxes: value.textBoxes?.filter((b) => b.id !== box.id),
+                  });
+                else if (selectedImage)
+                  commit({
+                    images: value.images?.filter(
+                      (image) => image.id !== selectedImage.id,
                     ),
                   });
-                }}
-              />
-            </label>
-          )}
-          <button
-            onClick={() => {
-              if (box)
-                commit({
-                  textBoxes: value.textBoxes?.filter((b) => b.id !== box.id),
-                });
-              else if (selectedImage)
-                commit({
-                  images: value.images?.filter(
-                    (image) => image.id !== selectedImage.id,
-                  ),
-                });
-              else if (sticker)
-                commit({
-                  stickers: value.stickers.filter((s) => s.id !== sticker.id),
-                });
-              setSelected("");
-            }}
-          >
-            <Trash2 size={14} />
-            Remove selected
-          </button>
-        </div>
-      )}
+                else if (sticker)
+                  commit({
+                    stickers: value.stickers.filter((s) => s.id !== sticker.id),
+                  });
+                setSelected("");
+              }}
+            >
+              <Trash2 size={14} />
+              {selectedImage
+                ? "Delete image"
+                : sticker
+                  ? "Delete sticker"
+                  : "Delete text box"}
+            </button>
+          </div>,
+          document.body,
+        )}
     </section>
   );
 }

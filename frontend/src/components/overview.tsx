@@ -17,7 +17,7 @@ import {
 } from "../lib/schedule";
 import { Heading, Stat } from "./ui";
 import { FocusCard } from "./focus";
-import { WeekSchedule } from "./week-schedule";
+import { CalendarView } from "./calendar-view";
 export function Overview({ w }: { w: Workspace }) {
   const user = w.user!;
   const [focusDetails, setFocusDetails] = useState(false);
@@ -153,7 +153,7 @@ export function Overview({ w }: { w: Workspace }) {
       )}
       <div className="daily-layout">
         <div className="daily-main">
-          <WeekSchedule w={w} />
+          <CalendarView w={w} embedded />
           <div className="overview-utilities">
             <section className="next-steps">
               <div className="section-head">

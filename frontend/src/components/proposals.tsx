@@ -34,7 +34,7 @@ export function Proposals({
       <div className="section-head">
         <div className="inline">
           <ShieldCheck size={18} />
-          <h2>{compact ? "Chat actions" : "Review queue"}</h2>
+          <h2>{compact ? "All proposals" : "Review queue"}</h2>
         </div>
         <span className="pill">{items.length}</span>
       </div>
