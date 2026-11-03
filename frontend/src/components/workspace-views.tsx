@@ -1,3 +1,4 @@
+import { NotesBrowser } from "./notes-browser";
 import {
   Plus,
   Sparkle,
@@ -61,7 +62,8 @@ export function WorkspaceViews({ w }: { w: Workspace }) {
       />
     </label>
   );
-  if (view === "Personal Diary") return <Diary key={user.id} />;
+  if (view === "Personal Diary")
+    return <Diary key={user.id} userId={user.id} />;
   if (view === "Profile")
     return (
       <Profile
@@ -202,93 +204,7 @@ export function WorkspaceViews({ w }: { w: Workspace }) {
         </div>
       </div>
     );
-  if (view === "Notes & files")
-    return (
-      <div className="page">
-        <Heading
-          eyebrow="A HOME FOR THE DETAILS"
-          title="Notes & files"
-          action={
-            <button
-              disabled={busy}
-              className="primary"
-              onClick={() => w.upload.current?.click()}
-            >
-              <Upload size={17} />
-              Upload a file
-            </button>
-          }
-        >
-          Meeting notes, transcripts, and the context behind your conversations.
-        </Heading>
-        <div className="page-toolbar">
-          <p className="muted">
-            {docs.length} saved versions ·{" "}
-            {(docs.reduce((s, d) => s + d.size, 0) / 1024 / 1024).toFixed(1)} MB
-            of 500 MB
-          </p>
-          {searchBox("a note or file")}
-        </div>
-        <div className="document-grid">
-          {docRows.map((d) => (
-            <article key={d.id} className="document-card">
-              <button className="document-open" onClick={() => w.readDoc(d)}>
-                <span className="file-icon">
-                  <FileText size={26} />
-                </span>
-                <span className="pill">v{d.version}</span>
-                <h3>{d.title}</h3>
-                <p>
-                  {dateLabel(d.created_at, user)} ·{" "}
-                  {Math.max(1, Math.round(d.size / 1024))} KB
-                </p>
-              </button>
-              <div className="document-actions">
-                <button className="text-button" onClick={() => w.readDoc(d)}>
-                  Open note
-                  <ArrowUpRight size={14} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label={`Download ${d.title}`}
-                  onClick={() => w.downloadDoc(d)}
-                >
-                  <Download size={16} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label={`Delete ${d.title} version ${d.version}`}
-                  onClick={() => w.remove("documents", d)}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-        {!docRows.length && (
-          <button
-            className="upload-empty"
-            disabled={busy}
-            onClick={() => w.upload.current?.click()}
-          >
-            <Upload size={28} />
-            <strong>
-              {search
-                ? "No matching files. Upload something new?"
-                : "Drop your thoughts into the workspace."}
-            </strong>
-            <span>
-              Choose a PDF, TXT, Markdown, SRT or VTT file · up to 10 MB
-            </span>
-          </button>
-        )}
-        <p className="footnote">
-          Upload the same filename to save a new version. Previous versions
-          remain available.
-        </p>
-      </div>
-    );
+  if (view === "Notes & files") return <NotesBrowser key={user.id} w={w} />;
   if (view === "Calendar") return <CalendarView w={w} />;
   return null;
 }

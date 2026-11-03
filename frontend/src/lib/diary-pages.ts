@@ -1,3 +1,4 @@
+import type { DiaryImage } from "./diary-images";
 import type { TextBox } from "./diary-canvas";
 export type Stroke = {
   color: string;
@@ -10,7 +11,9 @@ export type JournalEntry = {
   title: string;
   body: string;
   createdAt?: string;
+  position?: number;
   drawing?: Stroke[];
+  images?: DiaryImage[];
   textBoxes?: TextBox[];
   stickers?: { id: string; kind: string; x: number; y: number; size: number }[];
 };
@@ -25,6 +28,7 @@ export function dailyPages<T extends JournalEntry>(entries: T[]) {
   return [...entries].sort(
     (a, b) =>
       a.date.localeCompare(b.date) ||
+      pagePosition(a) - pagePosition(b) ||
       (a.createdAt || a.id).localeCompare(b.createdAt || b.id),
   );
 }
@@ -32,6 +36,7 @@ export function bookPages(entries: JournalEntry[]): BookPage[] {
   const pages: BookPage[] = [];
   for (const entry of dailyPages(entries)) {
     if (
+      entry.images?.length ||
       entry.drawing?.length ||
       entry.textBoxes?.length ||
       entry.stickers?.length
@@ -72,4 +77,59 @@ export function bookPages(entries: JournalEntry[]): BookPage[] {
     p.total = totals.get(p.entry.date)!;
   }
   return pages;
+}
+
+// A date is one notebook. Existing entries remain intact as pages inside it.
+export function diaryDays<T extends JournalEntry & { favourite?: boolean }>(
+  entries: T[],
+) {
+  const groups = new Map<string, T[]>();
+  for (const page of dailyPages(entries)) {
+    const pages = groups.get(page.date) || [];
+    pages.push(page);
+    groups.set(page.date, pages);
+  }
+  return [...groups]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, pages]) => ({
+      date,
+      pages,
+      title: pages[0].title || "A day in my life",
+      favourite: pages.some((page) => page.favourite),
+    }));
+}
+
+export function bookLayout(
+  viewWidth: number,
+  viewHeight: number,
+  expanded: boolean,
+) {
+  const available = Math.max(
+    100,
+    Math.min(viewWidth - (expanded ? 24 : 64), expanded ? 1400 : 1100),
+  );
+  const spread = available >= 700;
+  const width = Math.max(
+    64,
+    Math.min(
+      expanded ? 650 : 540,
+      available / (spread ? 2 : 1),
+      (viewHeight - (expanded ? 76 : 140)) / 1.65,
+    ),
+  );
+  return { width, height: Math.round(width * 1.65), spread };
+}
+
+function pagePosition(page: JournalEntry) {
+  return page.position ?? (Date.parse(page.createdAt || "") || 0);
+}
+export function nextPagePosition(pages: JournalEntry[], afterId?: string) {
+  const ordered = dailyPages(pages);
+  const i = afterId
+    ? ordered.findIndex((p) => p.id === afterId)
+    : ordered.length - 1;
+  if (i < 0) return Date.now();
+  const current = pagePosition(ordered[i]),
+    next = ordered[i + 1];
+  return next ? current + (pagePosition(next) - current) / 2 : current + 1000;
 }

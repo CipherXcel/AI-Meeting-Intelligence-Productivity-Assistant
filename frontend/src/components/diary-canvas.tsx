@@ -1,5 +1,11 @@
 "use client";
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import {
   PenLine,
   Type,
@@ -9,11 +15,15 @@ import {
   Move,
   Trash2,
   Maximize2,
+  Minimize2,
+  ImagePlus,
 } from "lucide-react";
+import { prepareDiaryImage, type DiaryImage } from "../lib/diary-images";
 import { strokeHit, type TextBox } from "../lib/diary-canvas";
 import type { Stroke } from "../lib/diary-pages";
 type Sticker = { id: string; kind: string; x: number; y: number; size: number };
 type Sheet = {
+  images?: DiaryImage[];
   body: string;
   drawing?: Stroke[];
   textBoxes?: TextBox[];
@@ -57,13 +67,22 @@ export function DiaryCanvas({
   const [undo, setUndo] = useState<Sheet[]>([]),
     [redo, setRedo] = useState<Sheet[]>([]),
     [ink, setInk] = useState<Stroke[] | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [imageError, setImageError] = useState("");
+  const imageInput = useRef<HTMLInputElement>(null);
   const sheet = useRef<HTMLDivElement>(null),
     live = useRef(value),
     pending = useRef<Stroke[] | null>(null),
     before = useRef<Sheet | null>(null),
     drag = useRef<{
       id: string;
-      type: "box" | "sticker";
+      type: "box" | "sticker" | "resize" | "image";
       x: number;
       y: number;
       px: number;
@@ -75,6 +94,7 @@ export function DiaryCanvas({
     drawing: [...(live.current.drawing || [])],
     textBoxes: [...(live.current.textBoxes || [])],
     stickers: [...live.current.stickers],
+    images: [...(live.current.images || [])],
   });
   const remember = (old: Sheet) => {
     setUndo((list) => [...list.slice(-14), old]);
@@ -168,7 +188,7 @@ export function DiaryCanvas({
   function startDrag(
     e: PointerEvent<HTMLElement>,
     id: string,
-    type: "box" | "sticker",
+    type: "box" | "sticker" | "resize" | "image",
     x: number,
     y: number,
   ) {
@@ -184,7 +204,27 @@ export function DiaryCanvas({
     const d = drag.current;
     if (!d) return;
     const [px, py] = pos(e);
-    if (d.type === "box")
+    if (d.type === "resize") {
+      change({
+        textBoxes: live.current.textBoxes?.map((b) => {
+          if (b.id !== d.id) return b;
+          const width = Math.max(120, Math.min(800, d.x + px - d.px));
+          return { ...b, width, x: Math.min(b.x, 1000 - width) };
+        }),
+      });
+    } else if (d.type === "image") {
+      change({
+        images: live.current.images?.map((image) =>
+          image.id === d.id
+            ? {
+                ...image,
+                x: Math.max(0, Math.min(1000 - image.width, d.x + px - d.px)),
+                y: Math.max(0, Math.min(1400 - image.height, d.y + py - d.py)),
+              }
+            : image,
+        ),
+      });
+    } else if (d.type === "box")
       change({
         textBoxes: live.current.textBoxes?.map((b) =>
           b.id === d.id
@@ -215,7 +255,8 @@ export function DiaryCanvas({
     before.current = null;
   }
   const box = value.textBoxes?.find((b) => b.id === selected),
-    sticker = value.stickers.find((s) => s.id === selected);
+    sticker = value.stickers.find((s) => s.id === selected),
+    selectedImage = value.images?.find((image) => image.id === selected);
   return (
     <section className="unified-journal">
       <div
@@ -267,13 +308,57 @@ export function DiaryCanvas({
               <Redo2 size={16} />
             </button>
             <button onClick={onStickers}>✦ Stickers</button>
+            <button
+              disabled={(value.images?.length || 0) >= 3}
+              title="Attach image"
+              onClick={() => imageInput.current?.click()}
+            >
+              <ImagePlus size={16} /> Image
+            </button>
           </>
         )}
-        <button onClick={fullscreen}>
-          <Maximize2 size={15} />
-          {expanded ? "Exit fullscreen" : "Fullscreen page"}
+        <button
+          onClick={fullscreen}
+          aria-label={
+            expanded ? "Exit page fullscreen" : "Fullscreen writing page"
+          }
+          title={expanded ? "Exit page fullscreen" : "Fullscreen writing page"}
+        >
+          {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
+      {!readOnly && (
+        <input
+          ref={imageInput}
+          type="file"
+          hidden
+          accept="image/png,image/jpeg,image/webp"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            setImageError("");
+            try {
+              const image = await prepareDiaryImage(file);
+              if (!mounted.current) return;
+              if ((live.current.images?.length || 0) >= 3)
+                throw Error("Use up to three images on each page.");
+              commit({ images: [...(live.current.images || []), image] });
+              setMode("write");
+              setSelected(image.id);
+            } catch (e) {
+              setImageError(
+                e instanceof Error ? e.message : "Could not attach image.",
+              );
+            }
+          }}
+        />
+      )}
+      {imageError && (
+        <p className="diary-error" role="alert">
+          {imageError}
+        </p>
+      )}
       {!readOnly && (
         <div className="sheet-options">
           {colors.map((c) => (
@@ -333,6 +418,42 @@ export function DiaryCanvas({
             readOnly={mode !== "write"}
           />
         )}
+        {value.images?.map((image) => (
+          <div
+            key={image.id}
+            className={`sheet-attached-image ${selected === image.id ? "selected" : ""}`}
+            style={{
+              left: `${image.x / 10}%`,
+              top: `${image.y / 14}%`,
+              width: `${image.width / 10}%`,
+              height: `${image.height / 14}%`,
+              pointerEvents: !readOnly && mode === "write" ? "auto" : "none",
+            }}
+          >
+            <img src={image.src} alt="Attached diary image" draggable={false} />
+            {!readOnly && (
+              <button
+                className="sheet-move"
+                aria-label="Move attached image"
+                onPointerDown={(e) =>
+                  startDrag(e, image.id, "image", image.x, image.y)
+                }
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                <Move size={13} />
+              </button>
+            )}
+            {!readOnly && (
+              <button
+                className="sheet-image-select"
+                aria-label="Select attached image"
+                onClick={() => setSelected(image.id)}
+              />
+            )}
+          </div>
+        ))}
         <svg
           className="sheet-ink"
           viewBox="0 0 1000 1400"
@@ -382,6 +503,21 @@ export function DiaryCanvas({
                 onPointerCancel={endDrag}
               >
                 <Move size={12} />
+              </button>
+            )}
+            {!readOnly && mode === "write" && selected === b.id && (
+              <button
+                className="sheet-resize-handle"
+                title="Drag to change text width"
+                aria-label="Resize text box horizontally"
+                onPointerDown={(e) =>
+                  startDrag(e, b.id, "resize", b.width, b.y)
+                }
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+              >
+                ↔
               </button>
             )}
             {readOnly ? (
@@ -439,7 +575,7 @@ export function DiaryCanvas({
           </button>
         ))}
       </div>
-      {!readOnly && (box || sticker) && (
+      {!readOnly && (box || sticker || selectedImage) && (
         <div className="sheet-selection-tools">
           {box && (
             <>
@@ -466,13 +602,17 @@ export function DiaryCanvas({
                 <input
                   type="range"
                   min="120"
-                  max={Math.min(800, 1000 - box.x)}
+                  max={800}
                   value={box.width}
                   onChange={(e) =>
                     change({
                       textBoxes: value.textBoxes?.map((b) =>
                         b.id === box.id
-                          ? { ...b, width: Number(e.target.value) }
+                          ? {
+                              ...b,
+                              width: Number(e.target.value),
+                              x: Math.min(b.x, 1000 - Number(e.target.value)),
+                            }
                           : b,
                       ),
                     })
@@ -501,11 +641,48 @@ export function DiaryCanvas({
               />
             </label>
           )}
+          {selectedImage && (
+            <label>
+              Image width
+              <input
+                type="range"
+                min="100"
+                max="800"
+                value={selectedImage.width}
+                onChange={(event) => {
+                  const width = Number(event.target.value),
+                    height = Math.min(
+                      1300,
+                      (width * selectedImage.height) / selectedImage.width,
+                    );
+                  change({
+                    images: value.images?.map((image) =>
+                      image.id === selectedImage.id
+                        ? {
+                            ...image,
+                            width,
+                            height,
+                            x: Math.min(image.x, 1000 - width),
+                            y: Math.min(image.y, 1400 - height),
+                          }
+                        : image,
+                    ),
+                  });
+                }}
+              />
+            </label>
+          )}
           <button
             onClick={() => {
               if (box)
                 commit({
                   textBoxes: value.textBoxes?.filter((b) => b.id !== box.id),
+                });
+              else if (selectedImage)
+                commit({
+                  images: value.images?.filter(
+                    (image) => image.id !== selectedImage.id,
+                  ),
                 });
               else if (sticker)
                 commit({

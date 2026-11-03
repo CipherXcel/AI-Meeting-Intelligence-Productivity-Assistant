@@ -39,6 +39,7 @@ export function useWorkspace() {
     [calendarError, setCalendarError] = useState("");
   const bottom = useRef<HTMLDivElement>(null),
     upload = useRef<HTMLInputElement>(null),
+    uploadFolder = useRef<string | null>(null),
     composer = useRef<HTMLTextAreaElement>(null),
     abort = useRef<AbortController | null>(null),
     loadSequence = useRef(0),
@@ -50,6 +51,27 @@ export function useWorkspace() {
   function notify(s: string) {
     setToast(s);
   }
+  const hasPrivateDiary = messages.some((message) => message.privateDiary);
+  useEffect(() => {
+    if (!hasPrivateDiary) return;
+    const clearPrivate = () =>
+      setMessages((items) => items.filter((item) => !item.privateDiary));
+    if (view !== "Saarthi") {
+      clearPrivate();
+      return;
+    }
+    const timer = setInterval(
+      () =>
+        void api("/diary/status")
+          .then((access) => {
+            if (!access.unlocked || !access.remember || !access.aiAllowed)
+              clearPrivate();
+          })
+          .catch(clearPrivate),
+      10000,
+    );
+    return () => clearInterval(timer);
+  }, [hasPrivateDiary, view]);
   function navigate(v: View) {
     const commit = () => {
       setView(v);
@@ -142,11 +164,29 @@ export function useWorkspace() {
     setView("Saarthi");
     const data = await loadWorkspace();
     if (!data) return;
-    setStatus("in");
+    const savedView = localStorage.getItem(`workspace:view:${data.user.id}`);
     const last = localStorage.getItem(`saarthi:last:${data.user.id}`);
     if (last && data.threads.some((t: Row) => t.id === last))
       await openThread(last, data.user);
+    if (
+      [
+        "Saarthi",
+        "Overview",
+        "Tasks",
+        "Notes & files",
+        "Personal Diary",
+        "Calendar",
+        "All proposals",
+        "Profile",
+      ].includes(savedView || "")
+    )
+      setView(savedView as View);
+    setStatus("in");
   }
+  useEffect(() => {
+    if (status === "in" && user)
+      localStorage.setItem(`workspace:view:${user.id}`, view);
+  }, [view, user?.id, status]);
   async function boot() {
     setStatus("loading");
     setBootError("");
@@ -312,7 +352,8 @@ export function useWorkspace() {
     setProgress("Thinking through your request…");
     navigate("Saarthi");
     const generation = session.current;
-    let id = thread;
+    let id = thread,
+      privateReply = false;
     try {
       if (!id) {
         const created = await api("/threads", "POST");
@@ -320,7 +361,7 @@ export function useWorkspace() {
         setThread(id);
         localStorage.setItem(`saarthi:last:${user.id}`, id);
       }
-      const next = [
+      const next: Row[] = [
         ...messages,
         { id: crypto.randomUUID(), role: "user", content: text },
       ];
@@ -328,7 +369,7 @@ export function useWorkspace() {
       const controller = new AbortController();
       abort.current = controller;
       const response: Response = await api(
-        "/chat",
+        "/diary/chat",
         "POST",
         { threadId: id, message: text },
         true,
@@ -349,10 +390,22 @@ export function useWorkspace() {
           if (!line) continue;
           const event = JSON.parse(line.slice(5));
           if (generation !== session.current) return;
+          if (event.type === "private-diary") {
+            privateReply = true;
+            next[next.length - 1].privateDiary = true;
+            setMessages([...next]);
+          }
           if (event.type === "progress") setProgress(event.message);
           if (event.type === "token") {
             answer += event.token;
-            setMessages([...next, { role: "assistant", content: answer }]);
+            setMessages([
+              ...next,
+              {
+                role: "assistant",
+                content: answer,
+                privateDiary: privateReply,
+              },
+            ]);
           }
           if (event.type === "error") throw Error(event.message);
         }
@@ -365,13 +418,13 @@ export function useWorkspace() {
             ? "Response stopped. Proposals already created remain in your review queue."
             : e.message,
         );
-        setInput(text);
+        if (!privateReply) setInput(text);
       }
     } finally {
       if (generation === session.current) {
         setProgress("");
         await loadWorkspace().catch((e) => notify(e.message));
-        if (id)
+        if (id && !privateReply)
           await api(`/threads/${id}`)
             .then((rows) => {
               if (generation === session.current) setMessages(rows);
@@ -418,7 +471,13 @@ export function useWorkspace() {
     await action(async () => {
       const form = new FormData();
       form.append("file", f);
-      await api("/documents", "POST", form);
+      const destination = uploadFolder.current;
+      uploadFolder.current = null;
+      const document = await api("/documents", "POST", form);
+      if (destination)
+        await api(`/documents/${document.id}/folder`, "PATCH", {
+          folderId: destination,
+        });
       await loadWorkspace();
       notify(
         "Document saved. Upload the same filename to add another version.",
@@ -505,6 +564,7 @@ export function useWorkspace() {
     calendarError,
     bottom,
     upload,
+    uploadFolder,
     composer,
     abort,
     pref,

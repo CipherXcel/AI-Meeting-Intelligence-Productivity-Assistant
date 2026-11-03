@@ -16,13 +16,14 @@ import { runAgent } from "./agent.js";
 import { approve, meetingSchema } from "./tools.js";
 import { upload, download, removeDocument } from "./storage.js";
 import { focusRouter } from "./focus.js";
-import { diaryRouter } from "./diary.js";
+import { diaryRouter, readDiaryForAgent } from "./diary.js";
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 const origin = process.env.APP_URL || "http://localhost:3000";
 app.use(cors({ origin, credentials: true }));
+app.use("/api/diary/entries", express.json({ limit: "2mb" }));
 app.use(express.json({ limit: "600kb" }));
 app.use(cookieParser());
 app.use("/api", (req, res, next) => {
@@ -186,7 +187,7 @@ api.delete("/threads/:id", async (req, res) => {
   res.json({ ok: true });
 });
 api.post(
-  "/chat",
+  ["/chat", "/diary/chat"],
   rateLimit({ windowMs: 60000, limit: 10, keyGenerator: (r) => r.userId }),
   async (req, res) => {
     const d = z
@@ -212,16 +213,13 @@ api.post(
     }, 15000);
     try {
       emit({ type: "started" });
-      await query(
-        "UPDATE threads SET title=$1 WHERE id=$2 AND title='New conversation'",
-        [d.message.slice(0, 70), d.threadId],
-      );
       await runAgent(
         req.userId,
         d.threadId,
         d.message,
         emit,
         controller.signal,
+        () => readDiaryForAgent(req),
       );
     } catch (e: any) {
       emit({ type: "error", message: e.message });
@@ -326,10 +324,89 @@ api.patch("/proposals/:id", async (req, res) => {
 api.post("/proposals/:id/approve", async (req, res) =>
   res.json(await approve(req.userId, String(req.params.id))),
 );
+api.get("/folders", async (req, res) =>
+  res.json(
+    await query(
+      "SELECT id,name FROM document_folders WHERE user_id=$1 ORDER BY name",
+      [req.userId],
+    ),
+  ),
+);
+api.post("/folders", async (req, res) => {
+  const { name } = z
+    .object({ name: z.string().trim().min(1).max(80) })
+    .strict()
+    .parse(req.body);
+  const id = randomUUID();
+  const existing = await query(
+    "SELECT id FROM document_folders WHERE user_id=$1 AND name=$2",
+    [req.userId, name],
+  );
+  if (existing.length) {
+    res.status(409).json({ error: "A folder with that name already exists." });
+    return;
+  }
+  await query(
+    "INSERT INTO document_folders(id,user_id,name) VALUES($1,$2,$3)",
+    [id, req.userId, name],
+  );
+  res.json({ id, name });
+});
+api.patch("/folders/:id", async (req, res) => {
+  const { name } = z
+    .object({ name: z.string().trim().min(1).max(80) })
+    .strict()
+    .parse(req.body);
+  const rows = await query(
+    "UPDATE document_folders SET name=$1 WHERE id=$2 AND user_id=$3 RETURNING id,name",
+    [name, req.params.id, req.userId],
+  );
+  if (!rows.length) {
+    res.status(404).json({ error: "Folder not found" });
+    return;
+  }
+  res.json(rows[0]);
+});
+api.delete("/folders/:id", async (req, res) => {
+  const rows = await query(
+    "DELETE FROM document_folders WHERE id=$1 AND user_id=$2 RETURNING id",
+    [req.params.id, req.userId],
+  );
+  if (!rows.length) {
+    res.status(404).json({ error: "Folder not found" });
+    return;
+  }
+  res.json({ ok: true });
+});
+api.patch("/documents/:id/folder", async (req, res) => {
+  const { folderId } = z
+    .object({ folderId: z.uuid().nullable() })
+    .strict()
+    .parse(req.body);
+  await owned("documents", String(req.params.id), req.userId);
+  if (
+    folderId &&
+    !(
+      await query(
+        "SELECT id FROM document_folders WHERE id=$1 AND user_id=$2",
+        [folderId, req.userId],
+      )
+    ).length
+  ) {
+    res.status(404).json({ error: "Folder not found" });
+    return;
+  }
+  await query("UPDATE documents SET folder_id=$1 WHERE id=$2 AND user_id=$3", [
+    folderId,
+    req.params.id,
+    req.userId,
+  ]);
+  res.json({ ok: true });
+});
 api.get("/documents", async (req, res) =>
   res.json(
     await query(
-      "SELECT id,title,mime,size,version,created_at FROM documents WHERE user_id=$1 ORDER BY created_at DESC",
+      "SELECT id,title,mime,size,version,created_at,folder_id FROM documents WHERE user_id=$1 ORDER BY created_at DESC",
       [req.userId],
     ),
   ),

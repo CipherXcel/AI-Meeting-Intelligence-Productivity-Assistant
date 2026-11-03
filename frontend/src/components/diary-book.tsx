@@ -3,10 +3,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PageFlip } from "page-flip";
 import {
   bookPages,
+  bookLayout,
   type BookPage,
   type JournalEntry,
 } from "../lib/diary-pages";
-import { ChevronLeft, ChevronRight, BookOpen, PenLine } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  List,
+  Maximize2,
+  Minimize2,
+  PenLine,
+  X,
+} from "lucide-react";
 const emoji: Record<string, string> = {
   sun: "☀️",
   cloud: "☁️",
@@ -50,6 +59,20 @@ function Leaf({ page }: { page: BookPage }) {
       {page.art ? (
         <div className="journal-reading-sheet">
           <div className="sheet-body-reading">{page.text}</div>
+          {page.entry.images?.map((image) => (
+            <img
+              key={image.id}
+              className="sheet-read-image"
+              src={image.src}
+              alt="Attached diary image"
+              style={{
+                left: `${image.x / 10}%`,
+                top: `${image.y / 14}%`,
+                width: `${image.width / 10}%`,
+                height: `${image.height / 14}%`,
+              }}
+            />
+          ))}
           <svg className="sheet-ink" viewBox="0 0 1000 1400">
             {page.entry.drawing?.map((s, i) => (
               <polyline
@@ -177,7 +200,21 @@ function fillLeaf(leaf: HTMLElement, page: BookPage) {
     });
     stickers.append(item);
   }
-  body.replaceChildren(words, svg, boxes, stickers);
+  const images = document.createDocumentFragment();
+  for (const image of page.entry.images || []) {
+    const img = document.createElement("img");
+    img.className = "sheet-read-image";
+    img.alt = "Attached diary image";
+    img.src = image.src;
+    Object.assign(img.style, {
+      left: `${image.x / 10}%`,
+      top: `${image.y / 14}%`,
+      width: `${image.width / 10}%`,
+      height: `${image.height / 14}%`,
+    });
+    images.append(img);
+  }
+  body.replaceChildren(words, images, svg, boxes, stickers);
 }
 export function DiaryBook({
   expanded,
@@ -202,47 +239,79 @@ export function DiaryBook({
     () => bookPages(entries.filter((e) => !e.trashed)),
     [entries],
   );
-  const [indexOpen, setIndexOpen] = useState(false),
-    [facing, setFacing] = useState(true);
-  const stage = useRef<HTMLDivElement>(null);
+  const chapters = useMemo(
+    () =>
+      pages.flatMap((p, i) =>
+        i === 0 || pages[i - 1].entry.date !== p.entry.date
+          ? [
+              {
+                date: p.entry.date,
+                title: p.entry.title || "A day in my life",
+                page: i,
+              },
+            ]
+          : [],
+      ),
+    [pages],
+  );
+  const contentsCount = Math.max(1, Math.ceil(chapters.length / 12));
+  const total = contentsCount + pages.length;
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [index, setIndex] = useState(Math.min(pageIndex, total - 1));
+  const [reduced, setReduced] = useState(false),
+    [failed, setFailed] = useState(false);
+  const stage = useRef<HTMLDivElement>(null),
+    root = useRef<HTMLElement>(null),
+    mount = useRef<HTMLDivElement>(null);
+  const flip = useRef<PageFlip | null>(null),
+    position = useRef(index);
   const [dimensions, setDimensions] = useState({
     width: 300,
     height: 540,
     spread: false,
   });
+  const animated = motion && !reduced && !failed;
+  const current = pages[Math.max(0, index - contentsCount)];
+  function go(next: number) {
+    const n = Math.max(0, Math.min(total - 1, next));
+    position.current = n;
+    setContentsOpen(false);
+    setIndex(n);
+    onPageChange(n);
+    flip.current?.turnToPage(n);
+  }
+  function turn(delta: number) {
+    if (flip.current) {
+      if (delta > 0) flip.current.flipNext("bottom");
+      else flip.current.flipPrev("bottom");
+    } else go(index + delta * (dimensions.spread ? 2 : 1));
+  }
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    root.current?.focus();
+    return () => {
+      if (previous?.isConnected) previous.focus();
+    };
+  }, []);
+  useEffect(() => {
+    const m = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(m.matches);
+    update();
+    m.addEventListener("change", update);
+    return () => m.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     const measure = () => {
       if (!stage.current) return;
-      const available = stage.current.clientWidth;
-      const reader = stage.current.closest(".journal-reader");
-      const chrome = reader
-        ? Array.from(reader.children)
-            .filter(
-              (child) =>
-                child !== stage.current &&
-                !child.classList.contains("journal-book-index"),
-            )
-            .reduce(
-              (height, child) => height + child.getBoundingClientRect().height,
-              0,
-            )
-        : 150;
-      const availableHeight = expanded
-        ? window.innerHeight - chrome - 64
-        : window.innerHeight - 280;
-      const spread = facing && available >= 760;
-      const width = Math.max(
-        120,
-        Math.min(
-          500,
-          available / (spread ? 2 : 1),
-          Math.max(160, availableHeight / 1.8),
-        ),
+      const { width, height, spread } = bookLayout(
+        window.innerWidth,
+        window.innerHeight,
+        expanded,
       );
       setDimensions((old) =>
         old.width === width && old.spread === spread
           ? old
-          : { width, height: Math.round(width * 1.8), spread },
+          : { width, height, spread },
       );
     };
     const observer = new ResizeObserver(measure);
@@ -253,36 +322,74 @@ export function DiaryBook({
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [expanded, facing]);
-  const [index, setIndex] = useState(pageIndex),
-    [reduced, setReduced] = useState(false),
-    [simple, setSimple] = useState(false),
-    [failed, setFailed] = useState(false);
-  const mount = useRef<HTMLDivElement>(null),
-    flip = useRef<PageFlip | null>(null),
-    position = useRef(pageIndex);
-  const animated = motion && !reduced && !simple && !failed;
+  }, [expanded]);
+  function fillContents(leaf: HTMLElement, page: number) {
+    leaf.classList.add("journal-contents-leaf");
+    const content = document.createElement("div");
+    content.className = "journal-contents-content";
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = "MY PERSONAL DIARY";
+    const title = document.createElement("h2");
+    title.textContent = "Contents";
+    const subtitle = document.createElement("p");
+    subtitle.textContent = "A life, one day at a time.";
+    const list = document.createElement("nav");
+    list.setAttribute("aria-label", "Days in this diary");
+    for (const chapter of chapters.slice(page * 12, (page + 1) * 12)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.bookPage = String(contentsCount + chapter.page);
+      const label = document.createElement("span");
+      label.textContent = new Date(
+        chapter.date + "T12:00:00",
+      ).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const name = document.createElement("small");
+      name.textContent = chapter.title;
+      const number = document.createElement("b");
+      number.textContent = String(chapter.page + 1);
+      label.append(name);
+      button.append(label, number);
+      list.append(button);
+    }
+    if (!chapters.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "Your first day is waiting to be written.";
+      list.append(empty);
+    }
+    const footer = document.createElement("footer");
+    footer.textContent = `CONTENTS · ${page + 1} / ${contentsCount}`;
+    content.append(eyebrow, title, subtitle, list, footer);
+    leaf.append(content);
+  }
   useEffect(() => {
-    const m = matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(m.matches);
-    update();
-    m.addEventListener("change", update);
-    return () => m.removeEventListener("change", update);
-  }, []);
-  useEffect(() => {
-    if (!animated || !pages.length || !mount.current) return;
+    if (!animated || !mount.current) return;
     let cancelled = false,
       instance: PageFlip | undefined;
     const node = document.createElement("div");
     node.className = "journal-flip-host";
     mount.current.appendChild(node);
+    const click = (event: MouseEvent) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+        "[data-book-page]",
+      );
+      if (button) {
+        event.stopPropagation();
+        go(Number(button.dataset.bookPage));
+      }
+    };
+    node.addEventListener("click", click);
     void import("page-flip")
       .then(({ PageFlip }) => {
         if (cancelled) return;
-        const nodes = pages.map((p) => {
+        const nodes = Array.from({ length: total }, (_, i) => {
           const leaf = document.createElement("div");
           leaf.className = "journal-leaf";
-          fillLeaf(leaf, p);
+          if (i < contentsCount) fillContents(leaf, i);
+          else fillLeaf(leaf, pages[i - contentsCount]);
           node.appendChild(leaf);
           return leaf;
         });
@@ -290,13 +397,13 @@ export function DiaryBook({
           width: dimensions.width,
           height: dimensions.height,
           size: "fixed",
-          minWidth: 120,
-          maxWidth: 560,
-          minHeight: 216,
-          maxHeight: 820,
+          minWidth: 64,
+          maxWidth: 700,
+          minHeight: 115,
+          maxHeight: 1260,
           drawShadow: true,
-          maxShadowOpacity: 0.24,
-          flippingTime: 700,
+          maxShadowOpacity: 0.3,
+          flippingTime: 750,
           usePortrait: true,
           autoSize: true,
           showCover: false,
@@ -305,13 +412,13 @@ export function DiaryBook({
           showPageCorners: true,
           disableFlipByClick: true,
           swipeDistance: 35,
-          startPage: Math.min(position.current, pages.length - 1),
+          startPage: Math.min(position.current, total - 1),
         });
         flip.current = instance;
-        instance.on("flip", (e) => {
-          position.current = Number(e.data);
-          setIndex(Number(e.data));
-          onPageChange(Number(e.data));
+        instance.on("flip", (event) => {
+          position.current = Number(event.data);
+          setIndex(Number(event.data));
+          onPageChange(Number(event.data));
         });
         instance.loadFromHTML(nodes);
       })
@@ -321,6 +428,7 @@ export function DiaryBook({
     return () => {
       cancelled = true;
       flip.current = null;
+      node.removeEventListener("click", click);
       if (instance) {
         instance.getRender().stop();
         instance.clear();
@@ -329,173 +437,204 @@ export function DiaryBook({
       node.remove();
     };
   }, [pages, animated, dimensions]);
-  const current = pages[Math.min(index, pages.length - 1)];
-  function go(next: number) {
-    const n = Math.max(0, Math.min(pages.length - 1, next));
-    position.current = n;
-    if (flip.current) flip.current.turnToPage(n);
-    setIndex(n);
-    onPageChange(n);
-  }
-  function turn(delta: number) {
-    if (flip.current) {
-      if (delta > 0) flip.current.flipNext("bottom");
-      else flip.current.flipPrev("bottom");
-    } else go(index + delta);
+  function simpleLeaf(i: number) {
+    if (i >= total) return null;
+    return (
+      <article
+        className={`journal-leaf ${i < contentsCount ? "journal-contents-leaf" : ""}`}
+        key={i}
+        style={{ width: dimensions.width, height: dimensions.height }}
+      >
+        {i < contentsCount ? (
+          <div className="journal-contents-content">
+            <small>MY PERSONAL DIARY</small>
+            <h2>Contents</h2>
+            <p>A life, one day at a time.</p>
+            <nav aria-label="Days in this diary">
+              {chapters.slice(i * 12, (i + 1) * 12).map((chapter) => (
+                <button
+                  key={chapter.date}
+                  onClick={() => go(contentsCount + chapter.page)}
+                >
+                  <span>
+                    {chapter.date}
+                    <small>{chapter.title}</small>
+                  </span>
+                  <b>{chapter.page + 1}</b>
+                </button>
+              ))}
+            </nav>
+            {!chapters.length && (
+              <p>Your first day is waiting to be written.</p>
+            )}
+            <footer>
+              CONTENTS · {i + 1} / {contentsCount}
+            </footer>
+          </div>
+        ) : (
+          <Leaf page={pages[i - contentsCount]} />
+        )}
+      </article>
+    );
   }
   return (
-    <section className="journal-reader" aria-label="Complete diary">
-      <header className="journal-reader-toolbar">
-        <div>
-          <BookOpen size={20} />
-          <strong>Your story, page by page</strong>
-        </div>
-        <div>
-          <button
-            aria-expanded={indexOpen}
-            onClick={() => setIndexOpen(!indexOpen)}
-          >
-            ☷ Index
-          </button>
-          <button type="button" aria-pressed={expanded} onClick={onFullscreen}>
-            {expanded ? "Exit fullscreen" : "Fullscreen book"}
-          </button>
-          <button onClick={onClose}>Back to pages</button>
-        </div>
-      </header>
-      {indexOpen && (
-        <aside className="journal-book-index" aria-label="Diary page index">
-          <header>
-            <strong>Contents</strong>
-            <button
-              onClick={() => setIndexOpen(false)}
-              aria-label="Close index"
-            >
-              ×
-            </button>
-          </header>
-          {pages.map((p, i) => (
-            <button
-              key={i}
-              aria-current={index === i ? "page" : undefined}
-              onClick={() => {
-                go(i);
-                setIndexOpen(false);
-              }}
-            >
-              <span>
-                {p.entry.date} · {p.number}/{p.total}
-              </span>
-              <strong>{p.entry.title || "Untitled page"}</strong>
-            </button>
-          ))}
-        </aside>
-      )}
-      {!pages.length ? (
-        <div className="journal-book-empty">
-          Your book begins with your first saved page.
-          <button onClick={onClose}>Write a page</button>
-        </div>
-      ) : (
-        <>
-          <div className="journal-book-navigation">
-            <label>
-              Go to page
-              <select
-                aria-label="Go to diary page"
-                value={Math.min(index, pages.length - 1)}
-                onChange={(e) => go(Number(e.target.value))}
+    <section
+      ref={root}
+      className={`journal-reader book-only ${expanded ? "book-maximized" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Personal diary book"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === "Tab") {
+          const items = Array.from(
+            root.current?.querySelectorAll<HTMLElement>(
+              'button:not(:disabled), [tabindex="0"]',
+            ) || [],
+          ).filter((item) => item.getClientRects().length);
+          const first = items[0],
+            last = items.at(-1);
+          if (
+            event.shiftKey &&
+            (document.activeElement === first ||
+              document.activeElement === root.current)
+          ) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }
+        if (
+          event.target instanceof HTMLSelectElement ||
+          event.target instanceof HTMLInputElement
+        )
+          return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          turn(event.key === "ArrowRight" ? 1 : -1);
+        }
+      }}
+    >
+      <div
+        className="book-binding"
+        style={{ width: dimensions.width * (dimensions.spread ? 2 : 1) + 24 }}
+      >
+        <button
+          className="book-index-tab"
+          title="Contents"
+          aria-label="Open diary contents"
+          aria-expanded={contentsOpen}
+          onClick={() => setContentsOpen(!contentsOpen)}
+        >
+          <List size={18} />
+        </button>
+        <span className="book-spread-title">
+          {index < contentsCount
+            ? "My personal diary"
+            : current?.entry.title || "A day in my life"}
+        </span>
+        {contentsOpen && (
+          <aside className="book-contents-drawer" aria-label="Diary contents">
+            <header>
+              <strong>Contents</strong>
+              <button
+                aria-label="Close contents"
+                onClick={() => setContentsOpen(false)}
               >
-                {pages.map((p, i) => (
-                  <option key={i} value={i}>
-                    {p.entry.date} · Page {p.number} of {p.total}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="journal-reader-switch">
-              <input
-                type="checkbox"
-                role="switch"
-                checked={facing}
-                onChange={(e) => setFacing(e.target.checked)}
-              />
-              Facing pages on wide screens
-            </label>
-            <label className="journal-reader-switch">
-              <input
-                type="checkbox"
-                role="switch"
-                checked={simple}
-                onChange={(e) => setSimple(e.target.checked)}
-              />
-              Simple reading
-            </label>
-            <button onClick={() => onEdit(current.entry.id)}>
-              <PenLine size={14} /> Edit this entry
+                <X size={16} />
+              </button>
+            </header>
+            {chapters.map((chapter) => (
+              <button
+                key={chapter.date}
+                onClick={() => go(contentsCount + chapter.page)}
+              >
+                <small>
+                  {new Date(chapter.date + "T12:00:00").toLocaleDateString(
+                    undefined,
+                    { day: "numeric", month: "short", year: "numeric" },
+                  )}
+                </small>
+                <strong>{chapter.title}</strong>
+              </button>
+            ))}
+          </aside>
+        )}
+        <div
+          className="book-edge-tools"
+          role="toolbar"
+          aria-label="Book controls"
+        >
+          {current && (
+            <button
+              aria-label="Edit this day"
+              title="Edit this day"
+              onClick={() => onEdit(current.entry.id)}
+            >
+              <PenLine size={17} />
             </button>
-          </div>
-          <div
-            ref={stage}
-            className="journal-book-stage"
-            tabIndex={0}
-            aria-label="Diary book. Drag a corner to fold a page. Left and right arrow keys turn pages."
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                e.preventDefault();
-                turn(e.key === "ArrowRight" ? 1 : -1);
-              }
-            }}
+          )}
+          <button
+            aria-label={expanded ? "Restore book size" : "Fullscreen book"}
+            title={expanded ? "Restore book size" : "Fullscreen book"}
+            aria-pressed={expanded}
+            onClick={onFullscreen}
           >
-            {animated ? (
-              <div
-                ref={mount}
-                className="journal-flip-mount"
-                style={{
-                  width: dimensions.width * (dimensions.spread ? 2 : 1),
-                  height: dimensions.height,
-                  margin: "auto",
-                }}
-              />
-            ) : (
-              <article className="journal-leaf journal-simple-page">
-                <Leaf page={current} />
-              </article>
-            )}
-          </div>
-          <footer className="journal-reader-footer">
-            <button
-              aria-label="Previous diary page"
-              disabled={index === 0}
-              onClick={() => turn(-1)}
-            >
-              <ChevronLeft />
-              Previous
-            </button>
-            <div aria-live="polite">
-              <strong>
-                {current.entry.date} · Page {current.number} of {current.total}
-              </strong>
-              <small>
-                {animated
-                  ? "Drag a corner slowly to fold the page. Release to turn or return."
-                  : "Simple reading · Use the arrows to turn pages."}
-              </small>
+            {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
+          <button
+            aria-label="Close diary book"
+            title="Close book"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div
+          ref={stage}
+          className="journal-book-stage"
+          aria-label="Turn diary pages by dragging a corner"
+        >
+          {animated ? (
+            <div
+              ref={mount}
+              className="journal-flip-mount"
+              style={{
+                width: dimensions.width * (dimensions.spread ? 2 : 1),
+                height: dimensions.height,
+              }}
+            />
+          ) : (
+            <div className="book-static-spread">
+              {simpleLeaf(index)}
+              {dimensions.spread && simpleLeaf(index + 1)}
             </div>
-            <button
-              aria-label="Next diary page"
-              disabled={
-                index >= pages.length - (dimensions.spread && animated ? 2 : 1)
-              }
-              onClick={() => turn(1)}
-            >
-              Next
-              <ChevronRight />
-            </button>
-          </footer>
-        </>
-      )}
+          )}
+        </div>
+        <div className="book-page-controls">
+          <button
+            aria-label="Previous book page"
+            disabled={index === 0}
+            onClick={() => turn(-1)}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span aria-live="polite">
+            {index < contentsCount
+              ? "Contents"
+              : `${current?.entry.date} · ${current?.number} / ${current?.total}`}
+          </span>
+          <button
+            aria-label="Next book page"
+            disabled={index >= total - (dimensions.spread ? 2 : 1)}
+            onClick={() => turn(1)}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

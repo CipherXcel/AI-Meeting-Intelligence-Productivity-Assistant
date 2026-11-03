@@ -238,11 +238,46 @@ diaryRouter.patch("/access", async (req, res) => {
 const entry = z
   .object({
     title: z.string().max(150),
+    position: z.number().finite().min(0).optional(),
     body: z.string().max(40000),
     date: z.iso.date(),
     mood: z.enum(["radiant", "good", "okay", "low", "heavy"]).nullable(),
     tags: z.array(z.string().trim().min(1).max(30)).max(8),
     favourite: z.boolean(),
+    images: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(60),
+            src: z
+              .string()
+              .max(240000)
+              .regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/)
+              .refine((src) => {
+                const data = Buffer.from(src.split(",")[1], "base64");
+                return src.startsWith("data:image/png")
+                  ? data
+                      .subarray(0, 8)
+                      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+                  : src.startsWith("data:image/jpeg")
+                    ? data[0] === 255 && data[1] === 216 && data[2] === 255
+                    : data.subarray(0, 4).toString() === "RIFF" &&
+                      data.subarray(8, 12).toString() === "WEBP";
+              }, "Use a valid raster image"),
+            x: z.number().min(0).max(900),
+            y: z.number().min(0).max(1400),
+            width: z.number().min(1).max(800),
+            height: z.number().min(1).max(1300),
+          })
+          .strict()
+          .refine(
+            (image) =>
+              image.x + image.width <= 1000 && image.y + image.height <= 1400,
+            "Image must fit on the page",
+          ),
+      )
+      .max(3)
+      .default([]),
     textBoxes: z
       .array(
         z
@@ -348,6 +383,46 @@ async function entries(user: string, key: Buffer) {
     createdAt: r.created_at,
   }));
 }
+diaryRouter.patch("/days/:date/favourite", async (req, res) => {
+  const date = z.iso.date().parse(req.params.date);
+  const { favourite } = z
+    .object({ favourite: z.boolean() })
+    .strict()
+    .parse(req.body);
+  const g = await requireGrant(req),
+    db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const { rows } = await db.query(
+      "SELECT id,payload FROM diary_entries WHERE user_id=$1 AND trashed=false FOR UPDATE",
+      [req.userId],
+    );
+    let count = 0;
+    for (const row of rows) {
+      const page = JSON.parse(
+        open(row.payload, g.key, `${req.userId}:${row.id}`),
+      );
+      if (page.date !== date) continue;
+      page.favourite = favourite;
+      await db.query(
+        "UPDATE diary_entries SET payload=$1,updated_at=NOW() WHERE id=$2 AND user_id=$3",
+        [
+          seal(JSON.stringify(page), g.key, `${req.userId}:${row.id}`),
+          row.id,
+          req.userId,
+        ],
+      );
+      count++;
+    }
+    await db.query("COMMIT");
+    res.json({ favourite, pages: count });
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally {
+    db.release();
+  }
+});
 diaryRouter.get("/entries", async (req, res) => {
   const g = await requireGrant(req);
   res.json(await entries(req.userId, g.key));
@@ -404,10 +479,21 @@ diaryRouter.post(
         "Enable Saarthi access in your diary privacy controls first.",
         403,
       );
-    const { question, entryIds } = z
+    const { question, entryIds, history } = z
       .object({
         question: z.string().trim().min(1).max(2000),
         entryIds: z.array(z.uuid()).min(1).max(20),
+        history: z
+          .array(
+            z
+              .object({
+                role: z.enum(["user", "assistant"]),
+                text: z.string().max(4000),
+              })
+              .strict(),
+          )
+          .max(6)
+          .default([]),
       })
       .strict()
       .parse(req.body);
@@ -431,7 +517,11 @@ diaryRouter.post(
     if (text.length > 60000)
       throw failure("Select fewer entries for this request.", 400);
     const answer = await diaryAI.respond(
-      JSON.stringify({ question, diaryEntries: JSON.parse(text) }),
+      JSON.stringify({
+        question,
+        recentPrivateConversation: history,
+        diaryEntries: JSON.parse(text),
+      }),
     );
     // Re-check revocation/expiry after the provider returns. Never persist diary prompts or answers.
     const current = await grant(req);
@@ -457,3 +547,22 @@ export const diaryAI = {
     });
   },
 };
+
+export async function readDiaryForAgent(req: Request) {
+  const g = await requireGrant(req);
+  if (!g.remember || !g.ai_allowed)
+    throw failure(
+      "Open Personal Diary, remember access on this device, and enable Saarthi access first. Never put the password in chat.",
+      403,
+    );
+  return (await entries(req.userId, g.key))
+    .filter((e) => !e.trashed)
+    .map((e) => ({
+      id: e.id,
+      date: e.date,
+      title: e.title,
+      body: e.body,
+      favourite: e.favourite,
+      positionedText: (e.textBoxes || []).map((b: { text: string }) => b.text),
+    }));
+}

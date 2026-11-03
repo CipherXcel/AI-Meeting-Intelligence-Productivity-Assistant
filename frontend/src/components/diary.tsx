@@ -1,9 +1,13 @@
 "use client";
-import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   BookHeart,
   BookOpenText,
   Minimize2,
+  Maximize2,
+  PenLine,
+  LayoutGrid,
+  List,
   LockKeyhole,
   UnlockKeyhole,
   Plus,
@@ -13,8 +17,6 @@ import {
   Trash2,
   ArrowLeft,
   Check,
-  Pause,
-  Play,
   Settings2,
   X,
   ArrowUp,
@@ -23,12 +25,18 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { DiaryDayCover } from "./diary-day-cover";
 import { DiaryBook } from "./diary-book";
 import { DiaryCanvas } from "./diary-canvas";
+import type { DiaryImage } from "../lib/diary-images";
 import type { TextBox } from "../lib/diary-canvas";
-import { dailyPages, type Stroke } from "../lib/diary-pages";
+import {
+  dailyPages,
+  diaryDays,
+  nextPagePosition,
+  type Stroke,
+} from "../lib/diary-pages";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { api } from "../lib/workspace";
 
 type Sticker = { id: string; kind: string; x: number; y: number; size: number };
@@ -44,7 +52,9 @@ type Entry = {
   trashed?: boolean;
   updatedAt?: string;
   createdAt?: string;
+  position?: number;
   drawing?: Stroke[];
+  images?: DiaryImage[];
   textBoxes?: TextBox[];
 };
 type Status = {
@@ -140,61 +150,35 @@ function Toggle({
     </label>
   );
 }
-export function Diary() {
+export function Diary({ userId }: { userId: string }) {
+  const restoreDiary = useRef(true);
   const [bookIndex, setBookIndex] = useState(0);
   const [bookReveal, setBookReveal] = useState(false);
   const [book, setBook] = useState(false),
-    [expanded, setExpanded] = useState(false),
-    [drawingOpen, setDrawingOpen] = useState(true);
-  const nativeFullscreen = useRef(false);
+    [expanded, setExpanded] = useState(false);
   function closeFullscreen() {
     setExpanded(false);
-    if (nativeFullscreen.current && document.fullscreenElement)
-      void document.exitFullscreen().catch(() => {});
-    nativeFullscreen.current = false;
   }
   function toggleFullscreen() {
-    if (expanded) {
-      closeFullscreen();
-      return;
-    }
-    setExpanded(true);
-    // Keep the body portal visible in native fullscreen; unsupported browsers
-    // still get the full-viewport diary layout.
-    if (document.fullscreenEnabled && !document.fullscreenElement) {
-      nativeFullscreen.current = true;
-      void document.documentElement.requestFullscreen().catch(() => {
-        nativeFullscreen.current = false;
-      });
-    }
+    setExpanded((value) => !value);
   }
   useEffect(() => {
-    const change = () => {
-      if (nativeFullscreen.current && !document.fullscreenElement) {
-        nativeFullscreen.current = false;
-        setExpanded(false);
-      }
-    };
-    document.addEventListener("fullscreenchange", change);
-    return () => {
-      document.removeEventListener("fullscreenchange", change);
-      if (nativeFullscreen.current && document.fullscreenElement)
-        void document.exitFullscreen().catch(() => {});
-    };
-  }, []);
-  useEffect(() => {
-    if (!expanded) return;
+    if (!expanded && !book) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeFullscreen();
+      if (e.key === "Escape") {
+        if (expanded) setExpanded(false);
+        else setBook(false);
+      }
     };
     document.addEventListener("keydown", close);
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", close);
     };
-  }, [expanded]);
+  }, [expanded, book]);
+  const [collectionView, setCollectionView] = useState<"grid" | "list">("grid");
   const [status, setStatus] = useState<Status | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -211,14 +195,12 @@ export function Diary() {
     [month, setMonth] = useState(today().slice(0, 7));
   const [stickerSearch, setStickerSearch] = useState(""),
     [stickerPack, setStickerPack] = useState("all");
-  const [paused, setPaused] = useState(false),
-    [stickersOpen, setStickersOpen] = useState(false),
+  const [stickersOpen, setStickersOpen] = useState(false),
     [selectedSticker, setSelectedSticker] = useState("");
   const [settings, setSettings] = useState(false),
     [newPassword, setNewPassword] = useState(""),
     [newConfirm, setNewConfirm] = useState(""),
-    [preview, setPreview] = useState(false),
-    [focus, setFocus] = useState(false);
+    [preview, setPreview] = useState(false);
   const [assistant, setAssistant] = useState(false),
     [question, setQuestion] = useState(""),
     [answer, setAnswer] = useState(""),
@@ -235,11 +217,11 @@ export function Diary() {
   current.current = draft;
   function clear() {
     generation.current++;
+    restoreDiary.current = true;
     setBook(false);
     setBookReveal(false);
     setBookIndex(0);
     closeFullscreen();
-    setDrawingOpen(true);
     setStatus((s) => (s ? { ...s, unlocked: false, aiAllowed: false } : s));
     setEntries([]);
     setDraft(null);
@@ -257,7 +239,6 @@ export function Diary() {
     setSaved("");
     setSearch("");
     setDate("");
-    setFocus(false);
     setSelectedSticker("");
   }
   async function check() {
@@ -276,8 +257,36 @@ export function Diary() {
   async function refresh() {
     const gen = generation.current;
     const rows = await api("/diary/entries");
-    if (alive.current && gen === generation.current && state.current?.unlocked)
+    if (
+      alive.current &&
+      gen === generation.current &&
+      state.current?.unlocked
+    ) {
       setEntries(rows);
+      if (restoreDiary.current) {
+        restoreDiary.current = false;
+        try {
+          const position = JSON.parse(
+            localStorage.getItem(`diary:position:${userId}`) || "{}",
+          );
+          const page = rows.find(
+            (e: Entry) => e.id === position.page && !e.trashed,
+          );
+          if (page) {
+            current.current = page;
+            setDraft(page);
+            setPreview(position.preview !== false);
+          }
+          setBook(position.book === true);
+          setBookIndex(
+            Number.isInteger(position.index) ? Math.max(0, position.index) : 0,
+          );
+          setCollectionView(position.layout === "list" ? "list" : "grid");
+        } catch {
+          /* A missing or older preference simply opens the collection. */
+        }
+      }
+    }
   }
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +342,27 @@ export function Diary() {
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [status?.unlocked, status?.remember]);
+  useEffect(() => {
+    if (!status?.unlocked || restoreDiary.current) return;
+    localStorage.setItem(
+      `diary:position:${userId}`,
+      JSON.stringify({
+        page: draft?.id,
+        book,
+        index: bookIndex,
+        preview,
+        layout: collectionView,
+      }),
+    );
+  }, [
+    status?.unlocked,
+    draft?.id,
+    book,
+    bookIndex,
+    preview,
+    collectionView,
+    userId,
+  ]);
   function edit(patch: Partial<Entry>) {
     if (!current.current || current.current.trashed) return;
     const next = { ...current.current, ...patch };
@@ -433,15 +463,27 @@ export function Diary() {
       setPreview(true);
     });
   }
-  async function create(targetDate?: string) {
+  async function create(targetDate?: string, append = false, afterId?: string) {
+    const day = targetDate || date || today();
+    const existing = dailyPages(
+      entries.filter((e) => !e.trashed && e.date === day),
+    )[0];
+    if (existing && !append) {
+      await pick(existing);
+      return;
+    }
     await action(async () => {
       await flush();
       const e: Entry = {
         id: crypto.randomUUID(),
         title: "",
         body: "",
-        date: targetDate || date || today(),
+        date: day,
         createdAt: new Date().toISOString(),
+        position: nextPagePosition(
+          entries.filter((p) => !p.trashed && p.date === day),
+          afterId,
+        ),
         drawing: [],
         mood: null,
         tags: [],
@@ -450,10 +492,32 @@ export function Diary() {
       };
       current.current = e;
       setDraft(e);
+      dirty.current = true;
+      revision.current++;
       setSaved("Your page is ready");
       setFilter("all");
       setSearch("");
       setPreview(false);
+    });
+  }
+  async function favouriteDay() {
+    if (!current.current || current.current.trashed) return;
+    await action(async () => {
+      await flush();
+      const date = current.current!.date;
+      const favourite =
+        !entries.some((e) => !e.trashed && e.date === date && e.favourite) &&
+        !current.current!.favourite;
+      await api(`/diary/days/${date}/favourite`, "PATCH", { favourite });
+      setEntries((rows) =>
+        rows.map((e) =>
+          !e.trashed && e.date === date ? { ...e, favourite } : e,
+        ),
+      );
+      if (current.current?.date === date) {
+        current.current = { ...current.current, favourite };
+        setDraft(current.current);
+      }
     });
   }
   async function lock() {
@@ -505,11 +569,17 @@ export function Diary() {
     visible = entries.filter(
       (e) =>
         (filter === "trash" ? e.trashed : !e.trashed) &&
-        (filter !== "favourites" || e.favourite) &&
+        (filter !== "favourites" ||
+          active.some((p) => p.date === e.date && p.favourite)) &&
         (!date || e.date === date) &&
-        `${e.title} ${e.body} ${e.tags.join(" ")}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
+        entries.some(
+          (p) =>
+            p.date === e.date &&
+            !!p.trashed === !!e.trashed &&
+            `${p.title} ${p.body} ${p.tags.join(" ")} ${(p.textBoxes || []).map((b) => b.text).join(" ")}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+        ),
     );
   const [year, mon] = month.split("-").map(Number),
     first = (new Date(year, mon - 1, 1).getDay() + 6) % 7,
@@ -518,20 +588,28 @@ export function Diary() {
     const d = new Date(year, mon - 1 + delta, 1);
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
-  const totalWords = active.reduce(
-    (n, e) => n + (e.body.trim().match(/\S+/g)?.length || 0),
-    0,
-  );
   const ordered = dailyPages(visible).sort((a, b) =>
     b.date.localeCompare(a.date),
   );
+  const daysInView = diaryDays(visible);
   const orderedAll = dailyPages(active);
+  const dayPages = draft
+    ? dailyPages([
+        ...entries.filter(
+          (e) =>
+            e.date === draft.date &&
+            !!e.trashed === !!draft.trashed &&
+            e.id !== draft.id,
+        ),
+        draft,
+      ])
+    : [];
+  const dayPageIndex = dayPages.findIndex((e) => e.id === draft?.id);
   const pageNumber = (e: Entry) =>
     orderedAll
       .filter((p) => p.date === e.date)
       .findIndex((p) => p.id === e.id) + 1 ||
     orderedAll.filter((p) => p.date === e.date).length + 1;
-  const selectedArt = draft?.stickers.find((s) => s.id === selectedSticker);
   const errorBox = error && (
     <div className="diary-error" role="alert">
       {error}
@@ -643,7 +721,7 @@ export function Diary() {
   const content = (
     <section
       aria-label="Personal diary"
-      className={`diary ${expanded ? "diary-expanded" : ""} ${preview ? "diary-page-preview" : ""} ${book ? "diary-book-open" : ""} ${paused ? "diary-paused" : ""} ${focus ? "diary-focus" : ""} ${draft ? "diary-has-entry" : ""}`}
+      className={`diary ${expanded ? "diary-expanded" : ""} ${preview ? "diary-page-preview" : ""} ${book ? "diary-book-open" : ""} ${draft ? "diary-has-entry" : ""}`}
     >
       <header className="diary-header">
         <div>
@@ -654,12 +732,6 @@ export function Diary() {
           <p>A place for the little things. And the big ones.</p>
         </div>
         <div className="diary-header-actions">
-          <button aria-pressed={expanded} onClick={toggleFullscreen}>
-            {expanded ? "Exit fullscreen" : "Fullscreen"}
-          </button>
-          <Toggle checked={!paused} change={(v) => setPaused(!v)}>
-            Motion
-          </Toggle>
           <button
             aria-label="Diary privacy and password"
             onClick={() => setSettings(!settings)}
@@ -674,11 +746,14 @@ export function Diary() {
       <div className="diary-summary-strip" aria-label="Diary overview">
         <span>
           <BookHeart size={16} />
-          <strong>{active.length}</strong> pages
+          <strong>{diaryDays(active).length}</strong> days
         </span>
         <span>
           <Heart size={16} />
-          <strong>{active.filter((e) => e.favourite).length}</strong> favourites
+          <strong>
+            {diaryDays(active).filter((e) => e.favourite).length}
+          </strong>{" "}
+          favourite days
         </span>
         <span>
           <span className="diary-summary-dot" /> Auto-save on
@@ -783,12 +858,16 @@ export function Diary() {
           pageIndex={bookIndex}
           onPageChange={setBookIndex}
           entries={entries}
-          motion={!paused}
-          onClose={() => setBook(false)}
+          motion={true}
+          onClose={() => {
+            setBook(false);
+            setExpanded(false);
+          }}
           onEdit={(id) => {
             const e = entries.find((e) => e.id === id);
             if (e) {
               setBook(false);
+              setExpanded(false);
               void pick(e).then(() => setPreview(false));
             }
           }}
@@ -801,7 +880,7 @@ export function Diary() {
               disabled={busy}
               onClick={() => void create()}
             >
-              <Plus size={17} /> A new page
+              <Plus size={17} /> Open today
             </button>
             <label className="diary-search">
               <Search size={16} />
@@ -814,7 +893,7 @@ export function Diary() {
             </label>
             <nav className="diary-tabs" aria-label="Diary collections">
               {[
-                ["all", "All pages"],
+                ["all", "All days"],
                 ["favourites", "Favourites"],
                 ["trash", "Trash"],
               ].map(([key, label]) => (
@@ -889,45 +968,26 @@ export function Diary() {
               )}
             </div>
             <div className="diary-list">
-              {ordered.map((e, i) => (
-                <Fragment key={e.id}>
-                  {(i === 0 || ordered[i - 1].date !== e.date) && (
-                    <h3 className="journal-day-heading">
-                      {new Date(e.date + "T12:00:00").toLocaleDateString(
-                        undefined,
-                        { weekday: "short", day: "numeric", month: "long" },
-                      )}
-                      <span>
-                        {ordered.filter((p) => p.date === e.date).length} pages
-                      </span>
-                    </h3>
-                  )}
-                  <button
-                    className={`diary-entry-card ${draft?.id === e.id ? "selected" : ""}`}
-                    key={e.id}
-                    disabled={busy}
-                    onClick={() => void pick(e)}
-                  >
-                    <span className="diary-entry-date">
-                      {new Date(e.date + "T12:00:00").toLocaleDateString(
-                        undefined,
-                        { day: "numeric", month: "short" },
-                      )}
-                      <span>
-                        {e.favourite && "♥"}{" "}
-                        {moods.find((m) => m.id === e.mood)?.icon}
-                      </span>
-                    </span>
-                    <small className="journal-page-number">
-                      Page {pageNumber(e)}
-                    </small>
-                    <strong>{e.title || "Untitled moment"}</strong>
-                    <p>{e.body || "A little space to begin."}</p>
-                    {e.tags.length > 0 && (
-                      <small>{e.tags.map((t) => `#${t}`).join(" ")}</small>
+              {daysInView.map((day) => (
+                <button
+                  key={day.date}
+                  className={`diary-entry-card ${draft?.date === day.date ? "selected" : ""}`}
+                  disabled={busy}
+                  onClick={() => void pick(day.pages[0])}
+                >
+                  <span className="diary-entry-date">
+                    {new Date(day.date + "T12:00:00").toLocaleDateString(
+                      undefined,
+                      { day: "numeric", month: "short", year: "numeric" },
                     )}
-                  </button>
-                </Fragment>
+                    {day.favourite && <Heart size={13} fill="currentColor" />}
+                  </span>
+                  <strong>{day.title}</strong>
+                  <small>
+                    {day.pages.length}{" "}
+                    {day.pages.length === 1 ? "page" : "pages"}
+                  </small>
+                </button>
               ))}
               {!visible.length && (
                 <p className="diary-list-empty">
@@ -950,16 +1010,13 @@ export function Diary() {
                     aria-label="Back to entries"
                     onClick={() => void pick(null)}
                   >
-                    <ArrowLeft size={17} /> All pages
+                    <ArrowLeft size={17} /> All days
                   </button>
                   <span className="diary-save-state" role="status">
                     {saved === "Saved securely" && <Check size={13} />}
                     {saved || (draft.trashed ? "In trash" : "Private entry")}
                   </span>
                   <div>
-                    <Toggle checked={focus} change={setFocus}>
-                      Focus
-                    </Toggle>
                     <div
                       className="diary-segmented"
                       role="group"
@@ -967,26 +1024,32 @@ export function Diary() {
                     >
                       <button
                         aria-pressed={!preview}
+                        aria-label="Edit diary page"
                         onClick={() => setPreview(false)}
                       >
-                        Edit
+                        <PenLine size={17} />
                       </button>
                       <button
                         aria-pressed={preview}
+                        aria-label="Preview diary page"
                         onClick={() => setPreview(true)}
                       >
-                        Preview
+                        <BookOpenText size={17} />
                       </button>
                     </div>
                     <button
                       aria-label="Favourite entry"
-                      aria-pressed={draft.favourite}
-                      disabled={draft.trashed || preview}
-                      onClick={() => edit({ favourite: !draft.favourite })}
+                      aria-pressed={dayPages.some((p) => p.favourite)}
+                      disabled={draft.trashed || preview || busy}
+                      onClick={() => void favouriteDay()}
                     >
                       <Heart
                         size={17}
-                        fill={draft.favourite ? "currentColor" : "none"}
+                        fill={
+                          dayPages.some((p) => p.favourite)
+                            ? "currentColor"
+                            : "none"
+                        }
                       />
                     </button>
                     {draft.trashed ? (
@@ -1010,11 +1073,44 @@ export function Diary() {
                   </div>
                 </div>
                 <div className="diary-page-content">
+                  <nav
+                    className="diary-day-pagination"
+                    aria-label="Pages in this day"
+                  >
+                    <button
+                      aria-label="Previous page in this day"
+                      disabled={busy || dayPageIndex <= 0}
+                      onClick={() => void pick(dayPages[dayPageIndex - 1])}
+                    >
+                      <ChevronLeft size={17} />
+                    </button>
+                    <span>
+                      {draft.date}{" "}
+                      <b>
+                        Page {dayPageIndex + 1} of {dayPages.length}
+                      </b>
+                    </span>
+                    <button
+                      aria-label="Next page in this day"
+                      disabled={busy || dayPageIndex >= dayPages.length - 1}
+                      onClick={() => void pick(dayPages[dayPageIndex + 1])}
+                    >
+                      <ChevronRight size={17} />
+                    </button>
+                    {!draft.trashed && (
+                      <button
+                        disabled={busy}
+                        onClick={() => void create(draft.date, true)}
+                      >
+                        <Plus size={16} /> Add page
+                      </button>
+                    )}
+                  </nav>
                   <div className="diary-date-row">
                     <input
                       type="date"
                       aria-label="Entry date"
-                      disabled={draft.trashed || preview}
+                      disabled={draft.trashed || preview || busy}
                       value={draft.date}
                       onChange={(e) => {
                         if (e.target.value) edit({ date: e.target.value });
@@ -1023,18 +1119,12 @@ export function Diary() {
                     <span>
                       PAGE {pageNumber(draft)} · YOUR STORY, YOUR PACE
                     </span>
-                    <button
-                      disabled={busy}
-                      onClick={() => void create(draft.date)}
-                    >
-                      + Another page for this day
-                    </button>
                   </div>
                   <input
                     className="diary-title"
                     aria-label="Entry title"
                     maxLength={150}
-                    disabled={draft.trashed || preview}
+                    disabled={draft.trashed || preview || busy}
                     placeholder="Give this moment a name…"
                     value={draft.title}
                     onChange={(e) => edit({ title: e.target.value })}
@@ -1044,7 +1134,7 @@ export function Diary() {
                     {moods.map((m) => (
                       <button
                         key={m.id}
-                        disabled={draft.trashed || preview}
+                        disabled={draft.trashed || preview || busy}
                         aria-pressed={draft.mood === m.id}
                         onClick={() =>
                           edit({ mood: draft.mood === m.id ? null : m.id })
@@ -1055,6 +1145,141 @@ export function Diary() {
                       </button>
                     ))}
                   </div>
+                  {preview && (
+                    <div
+                      className="diary-preview-corners"
+                      role="toolbar"
+                      aria-label="Page preview controls"
+                    >
+                      <button
+                        className="preview-back"
+                        title="All days"
+                        aria-label="Back to all days"
+                        onClick={() => void pick(null)}
+                      >
+                        <ArrowLeft size={18} />
+                      </button>
+                      <button
+                        className="preview-edit"
+                        title="Edit page"
+                        aria-label="Edit this diary page"
+                        disabled={busy || draft.trashed}
+                        onClick={() => setPreview(false)}
+                      >
+                        <PenLine size={18} />
+                      </button>
+                      <button
+                        className="preview-fullscreen"
+                        title="Fullscreen page"
+                        aria-label="Fullscreen page"
+                        onClick={toggleFullscreen}
+                      >
+                        <Maximize2 size={17} />
+                      </button>
+                      {draft.trashed && (
+                        <button
+                          className="preview-restore"
+                          aria-label="Restore this page"
+                          onClick={() => void trash(draft, false)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                      <button
+                        className="preview-prev"
+                        title="Previous page"
+                        aria-label="Previous page"
+                        disabled={busy || dayPageIndex <= 0}
+                        onClick={() => void pick(dayPages[dayPageIndex - 1])}
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      <button
+                        className="preview-next"
+                        title="Next page"
+                        aria-label="Next page"
+                        disabled={busy || dayPageIndex >= dayPages.length - 1}
+                        onClick={() => void pick(dayPages[dayPageIndex + 1])}
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                      {!draft.trashed && (
+                        <button
+                          className="preview-add"
+                          title="Add page after this one"
+                          aria-label="Add page after this one"
+                          disabled={busy}
+                          onClick={() =>
+                            void create(draft.date, true, draft.id)
+                          }
+                        >
+                          <Plus size={19} />
+                        </button>
+                      )}
+                      <button
+                        className="preview-top-prev"
+                        title="Previous page"
+                        aria-label="Previous page (top)"
+                        disabled={busy || dayPageIndex <= 0}
+                        onClick={() => void pick(dayPages[dayPageIndex - 1])}
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        className="preview-top-next"
+                        title="Next page"
+                        aria-label="Next page (top)"
+                        disabled={busy || dayPageIndex >= dayPages.length - 1}
+                        onClick={() => void pick(dayPages[dayPageIndex + 1])}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                      {!draft.trashed && (
+                        <>
+                          <button
+                            className="preview-top-add"
+                            title="Add page after this one"
+                            aria-label="Add page after this one (top)"
+                            disabled={busy}
+                            onClick={() =>
+                              void create(draft.date, true, draft.id)
+                            }
+                          >
+                            <Plus size={18} />
+                          </button>
+                          <button
+                            className="preview-favourite"
+                            title="Favourite this day"
+                            aria-label="Favourite this day"
+                            aria-pressed={dayPages.some((p) => p.favourite)}
+                            disabled={busy}
+                            onClick={() => void favouriteDay()}
+                          >
+                            <Heart
+                              size={15}
+                              fill={
+                                dayPages.some((p) => p.favourite)
+                                  ? "currentColor"
+                                  : "none"
+                              }
+                            />
+                          </button>
+                          <button
+                            className="preview-delete"
+                            title="Move page to trash"
+                            aria-label="Move this page to trash"
+                            disabled={busy}
+                            onClick={() => void trash(draft, true)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                      <span>
+                        {draft.date} · {dayPageIndex + 1}/{dayPages.length}
+                      </span>
+                    </div>
+                  )}
                   <DiaryCanvas
                     pageTitle={draft.title}
                     pageDate={draft.date}
@@ -1167,7 +1392,7 @@ export function Diary() {
                     <input
                       aria-label="Entry tags separated by commas"
                       placeholder="personal, college, little wins"
-                      disabled={draft.trashed || preview}
+                      disabled={draft.trashed || preview || busy}
                       value={draft.tags.join(",")}
                       onChange={(e) =>
                         edit({
@@ -1201,65 +1426,80 @@ export function Diary() {
               <section className="journal-page-index">
                 <header>
                   <div>
-                    <span className="diary-eyebrow">YOUR NOTEBOOK</span>
-                    <h2>Pages worth keeping.</h2>
-                    <p>
-                      Choose a date and open a page to read. Select Edit when
-                      you want to add more.
-                    </p>
+                    <span className="diary-eyebrow">YOUR DAYS</span>
+                    <h2>One day. Your whole story.</h2>
+                    <p>Open a day to read or add pages.</p>
                   </div>
-                  <button
-                    className="diary-primary"
-                    onClick={() => void create()}
-                  >
-                    <Plus size={16} />
-                    New page
-                  </button>
-                </header>
-                {ordered.map((e, i) => (
-                  <Fragment key={e.id}>
-                    {(i === 0 || ordered[i - 1].date !== e.date) && (
-                      <h3 className="journal-index-date">
-                        {new Date(e.date + "T12:00:00").toLocaleDateString(
-                          undefined,
-                          {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          },
-                        )}
-                      </h3>
-                    )}
-                    <button
-                      className="journal-index-card"
-                      disabled={busy}
-                      onClick={() => void pick(e)}
+                  <div className="diary-collection-controls">
+                    <div
+                      className="diary-segmented"
+                      aria-label="Collection layout"
                     >
-                      <span className="journal-index-page">
-                        {String(pageNumber(e)).padStart(2, "0")}
-                      </span>
-                      <span>
-                        <strong>{e.title || "Untitled page"}</strong>
+                      <button
+                        aria-label="Grid view"
+                        aria-pressed={collectionView === "grid"}
+                        onClick={() => setCollectionView("grid")}
+                      >
+                        <LayoutGrid size={17} />
+                      </button>
+                      <button
+                        aria-label="List view"
+                        aria-pressed={collectionView === "list"}
+                        onClick={() => setCollectionView("list")}
+                      >
+                        <List size={17} />
+                      </button>
+                    </div>
+                    <button
+                      className="diary-primary"
+                      onClick={() => void create()}
+                    >
+                      <Plus size={16} /> Today
+                    </button>
+                  </div>
+                </header>
+                <div className={`diary-day-collection ${collectionView}`}>
+                  {daysInView.map((day) => (
+                    <button
+                      key={day.date}
+                      className={`diary-day-card ${day.favourite ? "favourite-day" : ""}`}
+                      disabled={busy}
+                      onClick={() => void pick(day.pages[0])}
+                    >
+                      <DiaryDayCover
+                        date={day.date}
+                        favourite={day.favourite}
+                      />
+                      <span className="diary-day-copy">
                         <small>
-                          {e.body.slice(0, 100) ||
-                            e.textBoxes
-                              ?.map((t) => t.text)
-                              .join(" ")
-                              .slice(0, 100) ||
-                            (e.drawing?.length
-                              ? "A hand-drawn memory"
-                              : "A little space to begin")}
+                          {new Date(day.date + "T12:00:00").toLocaleDateString(
+                            undefined,
+                            {
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            },
+                          )}
                         </small>
+                        <strong>{day.title}</strong>
+                        <p>
+                          {day.pages
+                            .map((p) => p.body)
+                            .find(Boolean)
+                            ?.slice(0, 100) ||
+                            "Your thoughts, sketches and little moments."}
+                        </p>
                         <em>
-                          {e.drawing?.length ? "✎ Drawing · " : ""}
-                          {e.stickers.length ? "✦ Stickers · " : ""}Open preview
+                          {day.pages.length}{" "}
+                          {day.pages.length === 1 ? "page" : "pages"}{" "}
+                          {day.favourite ? "· Favourite" : ""}
                         </em>
                       </span>
-                      <ChevronRight size={18} />
+                      <ChevronRight size={17} />
                     </button>
-                  </Fragment>
-                ))}
+                  ))}
+                </div>
                 {!ordered.length && (
                   <div className="journal-index-empty">
                     <BookHeart size={40} />
@@ -1372,7 +1612,7 @@ export function Diary() {
   );
   return (
     <>
-      {expanded ? createPortal(content, document.body) : content}
+      {expanded || book ? createPortal(content, document.body) : content}
       {bookReveal &&
         createPortal(
           <div
@@ -1399,29 +1639,34 @@ export function Diary() {
           </div>,
           document.body,
         )}
-      {createPortal(
-        <div
-          className={`diary-floating-controls ${expanded ? "is-fullscreen" : ""}`}
-        >
-          <button
-            className="diary-book-fab"
-            disabled={busy}
-            aria-label={book ? "Return to writing desk" : "Open complete diary"}
-            title={book ? "Writing desk" : "Open complete diary"}
-            onClick={() =>
-              void action(async () => {
-                await flush();
-                if (!book) setBookReveal(true);
-                setBook(!book);
-              })
-            }
+      {!book &&
+        !expanded &&
+        createPortal(
+          <div
+            className={`diary-floating-controls ${expanded ? "is-fullscreen" : ""}`}
           >
-            <BookOpenText size={25} strokeWidth={1.6} />
-            <i aria-hidden="true">✦</i>
-          </button>
-        </div>,
-        document.body,
-      )}
+            <button
+              className="diary-book-fab"
+              disabled={busy}
+              aria-label={
+                book ? "Return to writing desk" : "Open complete diary"
+              }
+              title={book ? "Writing desk" : "Open complete diary"}
+              onClick={() =>
+                void action(async () => {
+                  await flush();
+                  setExpanded(false);
+                  setBookReveal(true);
+                  setBook(true);
+                })
+              }
+            >
+              <BookOpenText size={25} strokeWidth={1.6} />
+              <i aria-hidden="true">✦</i>
+            </button>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

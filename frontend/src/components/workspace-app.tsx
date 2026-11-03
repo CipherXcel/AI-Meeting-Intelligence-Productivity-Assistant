@@ -24,7 +24,8 @@ import {
   RefreshCw,
   LockKeyhole,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SaarthiDiary } from "./saarthi-diary";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useWorkspace } from "../lib/use-workspace";
@@ -39,6 +40,10 @@ import { FloatingDock } from "./floating-dock";
 import { WorkspaceDialogs } from "../components/workspace-dialogs";
 export default function WorkspaceApp() {
   const w = useWorkspace();
+  const [diaryChat, setDiaryChat] = useState(false);
+  useEffect(() => {
+    setDiaryChat(false);
+  }, [w.view, w.thread, w.user?.id]);
   const {
     status,
     user,
@@ -375,241 +380,271 @@ export default function WorkspaceApp() {
         {view === "Saarthi" ? (
           <div className="chat-layout queue-hidden">
             <section className="chat-main">
-              <div className="chat-heading">
-                <div className="inline">
-                  <span className="chat-symbol">
-                    <Sparkle size={18} />
-                  </span>
-                  <div>
-                    <h2>{currentTitle}</h2>
-                    <small>
-                      {thread
-                        ? "Saved conversation"
-                        : "Your workspace assistant"}
-                    </small>
-                  </div>
-                </div>
-                {thread && (
-                  <button
-                    className={`queue-toggle ${w.queue ? "active" : ""}`}
-                    ref={actionToggle}
-                    aria-label="Conversation actions"
-                    aria-controls="conversation-actions"
-                    aria-expanded={w.queue}
-                    onClick={() => w.setQueue(!w.queue)}
-                  >
-                    <ShieldCheck size={17} />
-                    <span>Actions</span>
-                    <b>
-                      {
-                        proposals.filter(
-                          (p) =>
-                            p.thread_id === thread && p.status === "pending",
-                        ).length
-                      }
-                    </b>
-                    <ChevronDown size={13} className="actions-chevron" />
-                  </button>
-                )}
-              </div>
-              {showQueue && (
-                <aside
-                  ref={actionPanel}
-                  id="conversation-actions"
-                  className="conversation-actions"
-                  aria-label="Conversation actions"
-                >
-                  <Proposals
-                    key={thread}
-                    items={proposals.filter((p) => p.thread_id === thread)}
-                    user={user}
-                    busy={busy}
-                    act={w.proposalAction}
-                    compact
-                  />
-                  <button
-                    className="text-button"
-                    onClick={() => w.navigate("All proposals")}
-                  >
-                    All proposals <ArrowUpRight size={13} />
-                  </button>
-                </aside>
-              )}
-              <div className="messages">
-                {threadLoading ? (
-                  <div className="empty">
-                    <span className="loader" />
-                    <p>Opening conversation…</p>
-                  </div>
-                ) : !messages.length ? (
-                  <div className="chat-welcome">
-                    <span className="welcome-mark">
-                      <Sparkle size={38} strokeWidth={1} fill="currentColor" />
-                    </span>
-                    <span className="eyebrow">SAARTHI · YOUR AI ASSISTANT</span>
-                    <h1>
-                      How can I help,
-                      <br />
-                      <em>{user.name.split(" ")[0]}?</em>
-                    </h1>
-                    <p>
-                      Plan meetings, work with your notes, and keep track of
-                      next steps.
-                    </p>
-                    <div className="suggestions">
-                      {[
-                        {
-                          icon: CalendarDays,
-                          title: "Plan a meeting",
-                          text: "Help me find a free slot for a meeting during my working hours.",
-                        },
-                        {
-                          icon: FileText,
-                          title: "Explore my notes",
-                          text: "Help me find decisions and action items in my saved notes.",
-                        },
-                        {
-                          icon: ListTodo,
-                          title: "Review my tasks",
-                          text: "Show my pending tasks and help me decide what to work on next.",
-                        },
-                        {
-                          icon: MessageSquare,
-                          title: "Prepare an agenda",
-                          text: "Help me prepare an agenda for my next meeting.",
-                        },
-                      ].map((s) => (
-                        <button
-                          key={s.title}
-                          disabled={chatBusy}
-                          onClick={() => {
-                            w.setInput(s.text);
-                            w.composer.current?.focus();
-                          }}
-                        >
-                          <s.icon size={18} />
-                          <span>{s.title}</span>
-                          <ArrowUpRight size={15} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((m, i) => (
-                    <article className={`message ${m.role}`} key={m.id || i}>
-                      <div className="message-content">
-                        <span className="message-author">
-                          {m.role === "user" ? "You" : "Saarthi"}
-                        </span>
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ href, children }) =>
-                              href?.startsWith("#note-") ? (
-                                <button
-                                  className="text-button"
-                                  onClick={() =>
-                                    w.readDoc({ id: href.slice(6) })
-                                  }
-                                >
-                                  {children}
-                                </button>
-                              ) : (
-                                <a href={href} target="_blank" rel="noreferrer">
-                                  {children}
-                                </a>
-                              ),
-                          }}
-                        >
-                          {m.content}
-                        </ReactMarkdown>
+              {diaryChat ? (
+                <SaarthiDiary
+                  onClose={() => setDiaryChat(false)}
+                  openDiary={() => w.navigate("Personal Diary")}
+                />
+              ) : (
+                <>
+                  <div className="chat-heading">
+                    <div className="inline">
+                      <span className="chat-symbol">
+                        <Sparkle size={18} />
+                      </span>
+                      <div>
+                        <h2>{currentTitle}</h2>
+                        <small>
+                          {messages.some((message) => message.privateDiary)
+                            ? "Private diary replies are not saved"
+                            : thread
+                              ? "Saved conversation"
+                              : "Your workspace assistant"}
+                        </small>
                       </div>
-                    </article>
-                  ))
-                )}
-                {chatBusy && (
-                  <div className="thinking" role="status">
-                    <span className="loader" />
-                    {progress}
-                  </div>
-                )}
-                <div ref={w.bottom} />
-              </div>
-              <div className="composer-wrap">
-                <form
-                  className="composer"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void w.send();
-                  }}
-                >
-                  <textarea
-                    ref={w.composer}
-                    aria-label="Message Saarthi"
-                    placeholder="Ask, plan, or untangle a thought…"
-                    value={input}
-                    maxLength={5000}
-                    rows={2}
-                    disabled={threadLoading}
-                    onChange={(e) => w.setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        !e.nativeEvent.isComposing
-                      ) {
-                        e.preventDefault();
-                        void w.send();
-                      }
-                    }}
-                  />
-                  <div className="composer-tools">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label="Upload a note"
-                      disabled={busy || chatBusy}
-                      onClick={() => w.upload.current?.click()}
-                    >
-                      <Plus size={20} />
-                    </button>
-                    <span>
-                      <Sparkle size={13} />
-                      Saarthi
-                    </span>
-                    {input.length > 4500 && <small>{input.length}/5000</small>}
-                    {chatBusy ? (
+                    </div>
+                    {thread && (
                       <button
-                        type="button"
-                        className="send-button"
-                        aria-label="Stop response"
-                        onClick={() => w.abort.current?.abort()}
+                        className={`queue-toggle ${w.queue ? "active" : ""}`}
+                        ref={actionToggle}
+                        aria-label="Conversation actions"
+                        aria-controls="conversation-actions"
+                        aria-expanded={w.queue}
+                        onClick={() => w.setQueue(!w.queue)}
                       >
-                        <Square size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        className="send-button"
-                        aria-label="Send message"
-                        disabled={!input.trim() || threadLoading}
-                      >
-                        <ArrowUp size={20} />
+                        <ShieldCheck size={17} />
+                        <span>Actions</span>
+                        <b>
+                          {
+                            proposals.filter(
+                              (p) =>
+                                p.thread_id === thread &&
+                                p.status === "pending",
+                            ).length
+                          }
+                        </b>
+                        <ChevronDown size={13} className="actions-chevron" />
                       </button>
                     )}
                   </div>
-                </form>
-                <p className="composer-caption">
-                  <ShieldCheck size={12} />
-                  You’re in control. Calendar changes need your approval.
-                  <button
-                    className="diary-chat-link"
-                    onClick={() => w.navigate("Personal Diary")}
-                  >
-                    Private diary with Saarthi ↗
-                  </button>
-                  <span>↵ send · shift ↵ new line</span>
-                </p>
-              </div>
+                  {showQueue && (
+                    <aside
+                      ref={actionPanel}
+                      id="conversation-actions"
+                      className="conversation-actions"
+                      aria-label="Conversation actions"
+                    >
+                      <Proposals
+                        key={thread}
+                        items={proposals.filter((p) => p.thread_id === thread)}
+                        user={user}
+                        busy={busy}
+                        act={w.proposalAction}
+                        compact
+                      />
+                      <button
+                        className="text-button"
+                        onClick={() => w.navigate("All proposals")}
+                      >
+                        All proposals <ArrowUpRight size={13} />
+                      </button>
+                    </aside>
+                  )}
+                  <div className="messages">
+                    {threadLoading ? (
+                      <div className="empty">
+                        <span className="loader" />
+                        <p>Opening conversation…</p>
+                      </div>
+                    ) : !messages.length ? (
+                      <div className="chat-welcome">
+                        <span className="welcome-mark">
+                          <Sparkle
+                            size={38}
+                            strokeWidth={1}
+                            fill="currentColor"
+                          />
+                        </span>
+                        <span className="eyebrow">
+                          SAARTHI · YOUR AI ASSISTANT
+                        </span>
+                        <h1>
+                          How can I help,
+                          <br />
+                          <em>{user.name.split(" ")[0]}?</em>
+                        </h1>
+                        <p>
+                          Plan meetings, work with your notes, and keep track of
+                          next steps.
+                        </p>
+                        <div className="suggestions">
+                          {[
+                            {
+                              icon: CalendarDays,
+                              title: "Plan a meeting",
+                              text: "Help me find a free slot for a meeting during my working hours.",
+                            },
+                            {
+                              icon: FileText,
+                              title: "Explore my notes",
+                              text: "Help me find decisions and action items in my saved notes.",
+                            },
+                            {
+                              icon: ListTodo,
+                              title: "Review my tasks",
+                              text: "Show my pending tasks and help me decide what to work on next.",
+                            },
+                            {
+                              icon: MessageSquare,
+                              title: "Prepare an agenda",
+                              text: "Help me prepare an agenda for my next meeting.",
+                            },
+                          ].map((s) => (
+                            <button
+                              key={s.title}
+                              disabled={chatBusy}
+                              onClick={() => {
+                                w.setInput(s.text);
+                                w.composer.current?.focus();
+                              }}
+                            >
+                              <s.icon size={18} />
+                              <span>{s.title}</span>
+                              <ArrowUpRight size={15} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      messages.map((m, i) => (
+                        <article
+                          className={`message ${m.role}`}
+                          key={m.id || i}
+                        >
+                          <div className="message-content">
+                            <span className="message-author">
+                              {m.role === "user" ? "You" : "Saarthi"}
+                              {m.privateDiary
+                                ? " · Private diary · not saved"
+                                : ""}
+                            </span>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                a: ({ href, children }) =>
+                                  href?.startsWith("#note-") ? (
+                                    <button
+                                      className="text-button"
+                                      onClick={() =>
+                                        w.readDoc({ id: href.slice(6) })
+                                      }
+                                    >
+                                      {children}
+                                    </button>
+                                  ) : (
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      {children}
+                                    </a>
+                                  ),
+                              }}
+                            >
+                              {m.content}
+                            </ReactMarkdown>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                    {chatBusy && (
+                      <div className="thinking" role="status">
+                        <span className="loader" />
+                        {progress}
+                      </div>
+                    )}
+                    <div ref={w.bottom} />
+                  </div>
+                  <div className="composer-wrap">
+                    <form
+                      className="composer"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void w.send();
+                      }}
+                    >
+                      <textarea
+                        ref={w.composer}
+                        aria-label="Message Saarthi"
+                        placeholder="Ask, plan, or untangle a thought…"
+                        value={input}
+                        maxLength={5000}
+                        rows={2}
+                        disabled={threadLoading}
+                        onChange={(e) => w.setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.nativeEvent.isComposing
+                          ) {
+                            e.preventDefault();
+                            void w.send();
+                          }
+                        }}
+                      />
+                      <div className="composer-tools">
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label="Upload a note"
+                          disabled={busy || chatBusy}
+                          onClick={() => w.upload.current?.click()}
+                        >
+                          <Plus size={20} />
+                        </button>
+                        <span>
+                          <Sparkle size={13} />
+                          Saarthi
+                        </span>
+                        {input.length > 4500 && (
+                          <small>{input.length}/5000</small>
+                        )}
+                        {chatBusy ? (
+                          <button
+                            type="button"
+                            className="send-button"
+                            aria-label="Stop response"
+                            onClick={() => w.abort.current?.abort()}
+                          >
+                            <Square size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            className="send-button"
+                            aria-label="Send message"
+                            disabled={!input.trim() || threadLoading}
+                          >
+                            <ArrowUp size={20} />
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                    <p className="composer-caption">
+                      <ShieldCheck size={12} />
+                      You’re in control. Calendar changes need your approval.
+                      <button
+                        className="diary-chat-link"
+                        onClick={() => setDiaryChat(true)}
+                      >
+                        Diary with Saarthi ↗
+                      </button>
+                      <span>↵ send · shift ↵ new line</span>
+                    </p>
+                  </div>
+                </>
+              )}
             </section>
           </div>
         ) : (
