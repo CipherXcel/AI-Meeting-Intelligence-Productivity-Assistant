@@ -1,5 +1,10 @@
 import pg from "pg";
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// Idle connection failures must not terminate unrelated HTTP requests.
+// pg-pool removes the failed client and opens a replacement when needed.
+pool.on("error", () => {
+  console.warn("An idle database connection closed; it will be replaced on demand.");
+});
 export const schema = `
 CREATE TABLE IF NOT EXISTS users(id UUID PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL,name TEXT NOT NULL,timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',duration INTEGER NOT NULL DEFAULT 30);
 CREATE TABLE IF NOT EXISTS sessions(id UUID PRIMARY KEY,user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,hash TEXT UNIQUE NOT NULL,expires TIMESTAMPTZ NOT NULL);
