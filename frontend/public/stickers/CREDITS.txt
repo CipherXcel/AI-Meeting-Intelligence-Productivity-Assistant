@@ -1,0 +1,4 @@
+Animated Noto Emoji by Google. Licensed under Creative Commons Attribution 4.0.
+Source: https://googlefonts.github.io/noto-emoji-files/
+License: https://creativecommons.org/licenses/by/4.0/
+Original WebP assets from https://fonts.gstatic.com/s/e/notoemoji/latest/ ; first-frame static illustrations, resized to 192px and compressed for the web.

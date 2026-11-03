@@ -5,6 +5,7 @@ import "../focus-workspace.css";
 import "../glass.css";
 import "../calendar-chat.css";
 import "../profile-settings.css";
+import "../diary.css";
 
 export const metadata: Metadata = {
   title: "Your workspace",

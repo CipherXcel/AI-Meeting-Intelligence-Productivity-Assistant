@@ -35,15 +35,8 @@ import { Proposals } from "../components/proposals";
 import { WorkspaceViews } from "../components/workspace-views";
 import { FocusIndicator } from "../components/focus";
 import { ProfileMenu } from "../components/profile-menu";
+import { FloatingDock } from "./floating-dock";
 import { WorkspaceDialogs } from "../components/workspace-dialogs";
-const navigation = [
-  { name: "Saarthi", icon: Sparkle },
-  { name: "Overview", icon: LayoutDashboard },
-  { name: "Tasks", icon: ListTodo },
-  { name: "Notes & files", icon: FileText },
-  { name: "Calendar", icon: CalendarDays },
-  { name: "All proposals", icon: ShieldCheck },
-] as const;
 export default function WorkspaceApp() {
   const w = useWorkspace();
   const {
@@ -373,27 +366,12 @@ export default function WorkspaceApp() {
             <PanelLeftOpen size={18} />
           </button>
         )}
-        <nav className="floating-dock" aria-label="Workspace navigation">
-          {navigation.map(({ name, icon: Icon }) => (
-            <button
-              key={name}
-              aria-label={name}
-              aria-current={view === name ? "page" : undefined}
-              className={`${view === name ? "active" : ""} ${name === "Saarthi" ? "dock-assistant" : ""}`}
-              onClick={() => w.navigate(name)}
-            >
-              <Icon size={18} />
-              <span>
-                {name === "Notes & files"
-                  ? "Notes"
-                  : name === "All proposals"
-                    ? "Proposals"
-                    : name}
-              </span>
-              {name === "All proposals" && pending.length > 0 && <i />}
-            </button>
-          ))}
-        </nav>
+        <FloatingDock
+          userId={user.id}
+          view={view}
+          navigate={w.navigate}
+          pending={pending.length}
+        />
         {view === "Saarthi" ? (
           <div className="chat-layout queue-hidden">
             <section className="chat-main">
@@ -623,6 +601,12 @@ export default function WorkspaceApp() {
                 <p className="composer-caption">
                   <ShieldCheck size={12} />
                   You’re in control. Calendar changes need your approval.
+                  <button
+                    className="diary-chat-link"
+                    onClick={() => w.navigate("Personal Diary")}
+                  >
+                    Private diary with Saarthi ↗
+                  </button>
                   <span>↵ send · shift ↵ new line</span>
                 </p>
               </div>

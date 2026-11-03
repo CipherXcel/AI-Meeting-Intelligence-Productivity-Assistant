@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
+COPY scripts/prepare-pageflip.mjs scripts/prepare-pageflip.mjs
 RUN npm ci
 COPY backend backend
 COPY frontend frontend

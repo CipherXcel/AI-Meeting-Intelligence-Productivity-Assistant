@@ -16,6 +16,7 @@ import { runAgent } from "./agent.js";
 import { approve, meetingSchema } from "./tools.js";
 import { upload, download, removeDocument } from "./storage.js";
 import { focusRouter } from "./focus.js";
+import { diaryRouter } from "./diary.js";
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -54,6 +55,7 @@ api.use(
   }),
 );
 api.use("/focus", focusRouter);
+api.use("/diary", diaryRouter);
 api.get("/me", async (req, res) => {
   const [u] = await query(
     "SELECT id,email,name,timezone,duration,profile FROM users WHERE id=$1",

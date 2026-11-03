@@ -51,11 +51,25 @@ export function useWorkspace() {
     setToast(s);
   }
   function navigate(v: View) {
-    setView(v);
-    setQueue(false);
-    window.scrollTo({ top: 0 });
-    setSearch("");
-    setSidebar(false);
+    const commit = () => {
+      setView(v);
+      setQueue(false);
+      window.scrollTo({ top: 0 });
+      setSearch("");
+      setSidebar(false);
+    };
+    if (
+      view === "Personal Diary" &&
+      v !== view &&
+      !window.dispatchEvent(
+        new CustomEvent("diary-before-leave", {
+          cancelable: true,
+          detail: commit,
+        }),
+      )
+    )
+      return;
+    commit();
   }
   function clearSession() {
     session.current++;
@@ -263,10 +277,22 @@ export function useWorkspace() {
     });
   }
   async function logout() {
-    await action(async () => {
-      await api("/auth/logout", "POST");
-      clearSession();
-    });
+    const commit = () =>
+      void action(async () => {
+        await api("/auth/logout", "POST");
+        clearSession();
+      });
+    if (
+      view === "Personal Diary" &&
+      !window.dispatchEvent(
+        new CustomEvent("diary-before-leave", {
+          cancelable: true,
+          detail: commit,
+        }),
+      )
+    )
+      return;
+    commit();
   }
   function newChat() {
     if (chatBusy) return;

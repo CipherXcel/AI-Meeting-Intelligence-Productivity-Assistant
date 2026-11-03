@@ -10,7 +10,8 @@
     "build": "npm run build -w backend && npm run build -w frontend && node scripts/stage-frontend.mjs",
     "start": "npm start -w backend",
     "dev:frontend": "npm run dev -w frontend",
-    "dev:backend": "npm run dev -w backend"
+    "dev:backend": "npm run dev -w backend",
+    "postinstall": "node scripts/prepare-pageflip.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -18,6 +18,7 @@ import { Heading, Stat, Empty } from "./ui";
 import { Proposals } from "./proposals";
 import { Overview } from "./overview";
 import { CalendarView } from "./calendar-view";
+import { Diary } from "./diary";
 import { Profile } from "./profile";
 export function WorkspaceViews({ w }: { w: Workspace }) {
   const {
@@ -60,6 +61,7 @@ export function WorkspaceViews({ w }: { w: Workspace }) {
       />
     </label>
   );
+  if (view === "Personal Diary") return <Diary key={user.id} />;
   if (view === "Profile")
     return (
       <Profile

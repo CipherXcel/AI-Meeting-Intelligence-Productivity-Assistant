@@ -4,6 +4,7 @@ export type View =
   | "Overview"
   | "Tasks"
   | "Notes & files"
+  | "Personal Diary"
   | "Calendar"
   | "All proposals"
   | "Profile";
