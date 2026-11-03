@@ -183,7 +183,7 @@ authRouter.post("/refresh", async (req, res) => {
         existing.user_id,
       ]);
     const r = await db.query(
-      "DELETE FROM sessions WHERE hash=$1 AND expires>NOW() RETURNING user_id",
+      "SELECT id,user_id FROM sessions WHERE hash=$1 AND expires>NOW() FOR UPDATE",
       [sha(raw)],
     );
     if (!r.rows[0]) {
@@ -205,6 +205,13 @@ authRouter.post("/refresh", async (req, res) => {
         new Date(Date.now() + 30 * 86400000),
       ],
     );
+    // Carry only remembered diary access to the rotated session before the old
+    // session is removed. The cookie, expiry and explicit AI consent stay intact.
+    await db.query(
+      "UPDATE diary_grants SET session_id=$1 WHERE session_id=$2 AND user_id=$3 AND remember=true AND expires>NOW()",
+      [sid, r.rows[0].id, r.rows[0].user_id],
+    );
+    await db.query("DELETE FROM sessions WHERE id=$1", [r.rows[0].id]);
     await db.query("COMMIT");
     res
       .cookie("refresh", token, cookie)

@@ -214,13 +214,29 @@ export function DiaryBook({
     const measure = () => {
       if (!stage.current) return;
       const available = stage.current.clientWidth;
+      const reader = stage.current.closest(".journal-reader");
+      const chrome = reader
+        ? Array.from(reader.children)
+            .filter(
+              (child) =>
+                child !== stage.current &&
+                !child.classList.contains("journal-book-index"),
+            )
+            .reduce(
+              (height, child) => height + child.getBoundingClientRect().height,
+              0,
+            )
+        : 150;
+      const availableHeight = expanded
+        ? window.innerHeight - chrome - 64
+        : window.innerHeight - 280;
       const spread = facing && available >= 760;
       const width = Math.max(
-        200,
+        120,
         Math.min(
           500,
           available / (spread ? 2 : 1),
-          Math.max(220, (window.innerHeight - (expanded ? 150 : 280)) / 1.8),
+          Math.max(160, availableHeight / 1.8),
         ),
       );
       setDimensions((old) =>
@@ -274,9 +290,9 @@ export function DiaryBook({
           width: dimensions.width,
           height: dimensions.height,
           size: "fixed",
-          minWidth: 260,
+          minWidth: 120,
           maxWidth: 560,
-          minHeight: 400,
+          minHeight: 216,
           maxHeight: 820,
           drawShadow: true,
           maxShadowOpacity: 0.24,
@@ -341,7 +357,7 @@ export function DiaryBook({
           >
             ☷ Index
           </button>
-          <button onClick={onFullscreen}>
+          <button type="button" aria-pressed={expanded} onClick={onFullscreen}>
             {expanded ? "Exit fullscreen" : "Fullscreen book"}
           </button>
           <button onClick={onClose}>Back to pages</button>

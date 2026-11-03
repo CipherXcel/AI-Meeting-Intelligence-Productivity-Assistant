@@ -142,15 +142,52 @@ function Toggle({
 }
 export function Diary() {
   const [bookIndex, setBookIndex] = useState(0);
+  const [bookReveal, setBookReveal] = useState(false);
   const [book, setBook] = useState(false),
     [expanded, setExpanded] = useState(false),
     [drawingOpen, setDrawingOpen] = useState(true);
+  const nativeFullscreen = useRef(false);
+  function closeFullscreen() {
+    setExpanded(false);
+    if (nativeFullscreen.current && document.fullscreenElement)
+      void document.exitFullscreen().catch(() => {});
+    nativeFullscreen.current = false;
+  }
+  function toggleFullscreen() {
+    if (expanded) {
+      closeFullscreen();
+      return;
+    }
+    setExpanded(true);
+    // Keep the body portal visible in native fullscreen; unsupported browsers
+    // still get the full-viewport diary layout.
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+      nativeFullscreen.current = true;
+      void document.documentElement.requestFullscreen().catch(() => {
+        nativeFullscreen.current = false;
+      });
+    }
+  }
+  useEffect(() => {
+    const change = () => {
+      if (nativeFullscreen.current && !document.fullscreenElement) {
+        nativeFullscreen.current = false;
+        setExpanded(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", change);
+    return () => {
+      document.removeEventListener("fullscreenchange", change);
+      if (nativeFullscreen.current && document.fullscreenElement)
+        void document.exitFullscreen().catch(() => {});
+    };
+  }, []);
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
+      if (e.key === "Escape") closeFullscreen();
     };
     document.addEventListener("keydown", close);
     return () => {
@@ -199,8 +236,9 @@ export function Diary() {
   function clear() {
     generation.current++;
     setBook(false);
+    setBookReveal(false);
     setBookIndex(0);
-    setExpanded(false);
+    closeFullscreen();
     setDrawingOpen(true);
     setStatus((s) => (s ? { ...s, unlocked: false, aiAllowed: false } : s));
     setEntries([]);
@@ -616,10 +654,7 @@ export function Diary() {
           <p>A place for the little things. And the big ones.</p>
         </div>
         <div className="diary-header-actions">
-          <button
-            aria-pressed={expanded}
-            onClick={() => setExpanded(!expanded)}
-          >
+          <button aria-pressed={expanded} onClick={toggleFullscreen}>
             {expanded ? "Exit fullscreen" : "Fullscreen"}
           </button>
           <Toggle checked={!paused} change={(v) => setPaused(!v)}>
@@ -736,30 +771,15 @@ export function Diary() {
           className="diary-exit-fullscreen"
           aria-label="Exit fullscreen"
           title="Exit fullscreen (Esc)"
-          onClick={() => setExpanded(false)}
+          onClick={closeFullscreen}
         >
           <Minimize2 size={19} />
         </button>
       )}
-      <button
-        className="diary-book-fab"
-        disabled={busy}
-        aria-label={book ? "Return to writing desk" : "Open complete diary"}
-        title={book ? "Writing desk" : "Open complete diary"}
-        onClick={() =>
-          void action(async () => {
-            await flush();
-            setBook(!book);
-          })
-        }
-      >
-        <BookOpenText size={25} strokeWidth={1.6} />
-        <i aria-hidden="true">✦</i>
-      </button>
       {book ? (
         <DiaryBook
           expanded={expanded}
-          onFullscreen={() => setExpanded(!expanded)}
+          onFullscreen={toggleFullscreen}
           pageIndex={bookIndex}
           onPageChange={setBookIndex}
           entries={entries}
@@ -1043,7 +1063,7 @@ export function Diary() {
                     change={edit}
                     readOnly={!!draft.trashed || preview}
                     renderSticker={(kind) => <StickerArt kind={kind} />}
-                    fullscreen={() => setExpanded(!expanded)}
+                    fullscreen={toggleFullscreen}
                     expanded={expanded}
                     onStickers={() => setStickersOpen(!stickersOpen)}
                   />
@@ -1350,5 +1370,58 @@ export function Diary() {
       )}
     </section>
   );
-  return expanded ? createPortal(content, document.body) : content;
+  return (
+    <>
+      {expanded ? createPortal(content, document.body) : content}
+      {bookReveal &&
+        createPortal(
+          <div
+            className="diary-book-reveal"
+            aria-hidden="true"
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget) setBookReveal(false);
+            }}
+          >
+            <div className="diary-reveal-halo" />
+            {Array.from({ length: 36 }, (_, i) => (
+              <span
+                key={i}
+                style={{
+                  left: `${(i * 37 + 11) % 100}%`,
+                  top: `${(i * 23 + 7) % 100}%`,
+                  animationDelay: `${(i % 6) * 45}ms`,
+                  fontSize: `${i % 3 === 0 ? 22 : 8 + (i % 7)}px`,
+                }}
+              >
+                ✦
+              </span>
+            ))}
+          </div>,
+          document.body,
+        )}
+      {createPortal(
+        <div
+          className={`diary-floating-controls ${expanded ? "is-fullscreen" : ""}`}
+        >
+          <button
+            className="diary-book-fab"
+            disabled={busy}
+            aria-label={book ? "Return to writing desk" : "Open complete diary"}
+            title={book ? "Writing desk" : "Open complete diary"}
+            onClick={() =>
+              void action(async () => {
+                await flush();
+                if (!book) setBookReveal(true);
+                setBook(!book);
+              })
+            }
+          >
+            <BookOpenText size={25} strokeWidth={1.6} />
+            <i aria-hidden="true">✦</i>
+          </button>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
